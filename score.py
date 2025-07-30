@@ -37,7 +37,7 @@ def find_profile(profiles, network):
         return next((p for p in profiles if p.network and p.network.lower() == network.lower()), None)
 
 if __name__ == "__main__":
-    pdf_path = "resume/Ajitesh_Panda.pdf"
+    pdf_path = "resume/resume_152551834_322387967.pdf"
     
     # Create cache filename based on PDF path
     cache_filename = f"cache/resumecache_{os.path.basename(pdf_path).replace('.pdf', '')}.json"

@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 import requests
 from pydantic import BaseModel
 import ollama
-from prompt import GITHUB_PROJECT_SELECTION_PROMPT
+from prompts.template_manager import TemplateManager
 
 
 class GitHubProfile(BaseModel):
@@ -348,8 +348,28 @@ def generate_projects_json(projects: List[Dict]) -> List[Dict]:
         # Convert to JSON string for the prompt
         projects_json = json.dumps(projects_data, indent=2)
         
-        # Prepare the prompt
-        prompt = GITHUB_PROJECT_SELECTION_PROMPT.format(projects_data=projects_json)
+        # Prepare the prompt using template manager
+        template_manager = TemplateManager()
+        prompt = template_manager.render_github_project_selection_template(projects_data=projects_json)
+        
+        if not prompt:
+            print("❌ Failed to render GitHub project selection template")
+            # Fallback: return first 5 projects
+            projects_data = []
+            for project in projects[:5]:
+                project_data = {
+                    "name": project.get('name'),
+                    "description": project.get('description'),
+                    "github_url": project.get('github_url'),
+                    "live_url": project.get('live_url'),
+                    "technologies": project.get('technologies', []),
+                    "project_type": project.get('project_type', 'self_project'),  # Add project type
+                    "contributor_count": project.get('contributor_count', 1),  # Add contributor count
+                    "github_details": project.get('github_details', {})
+                }
+                projects_data.append(project_data)
+            
+            return projects_data
         
         print(f"🤖 Using LLM to select top 5 projects from {len(projects)} repositories...")
         

@@ -43,7 +43,8 @@ class TemplateManager:
             'skills': 'skills.jinja',
             'projects': 'projects.jinja',
             'awards': 'awards.jinja',
-            'system_message': 'system_message.jinja'
+            'system_message': 'system_message.jinja',
+            'github_project_selection': 'github_project_selection.jinja'
         }
         
         for section_name, filename in template_files.items():
@@ -180,4 +181,26 @@ class TemplateManager:
             return template.render(section_name=section_name)
         except Exception as e:
             print(f"❌ Error rendering system message template: {e}")
+            return None
+    
+    def render_github_project_selection_template(self, projects_data: str) -> Optional[str]:
+        """
+        Render the GitHub project selection template.
+        
+        Args:
+            projects_data (str): JSON string of projects data
+            
+        Returns:
+            Optional[str]: Rendered template string
+        """
+        if 'github_project_selection' not in self._templates:
+            print(f"❌ Template not found for section: github_project_selection")
+            print(f"Available sections: {self.get_available_sections()}")
+            return None
+        
+        try:
+            template = self._templates['github_project_selection']
+            return template.render(projects_data=projects_data)
+        except Exception as e:
+            print(f"❌ Error rendering GitHub project selection template: {e}")
             return None 
