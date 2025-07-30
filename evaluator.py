@@ -35,32 +35,19 @@ class EvaluationResult(BaseModel):
     @classmethod
     def validate_final_score(cls, v, info):
         if info.data and 'total_score' in info.data:
-            # Final score can be higher than 100 with bonus or lower with deductions
             if v < MIN_FINAL_SCORE or v > MAX_FINAL_SCORE:
                 raise ValueError(f'Final score must be between {MIN_FINAL_SCORE} and {MAX_FINAL_SCORE}')
         return v
 
     def to_json(self) -> str:
-        """Convert the evaluation result to JSON string"""
         return self.json(indent=2)
 
     def to_dict(self) -> dict:
-        """Convert the evaluation result to dictionary"""
         return self.dict()
 
 
-
 class ResumeEvaluator:
-    """AI-powered resume evaluator using Ollama models."""
-
     def __init__(self, model_name: str = DEFAULT_MODEL, temperature: float = 0.2):
-        """
-        Initialize the Resume Evaluator with Ollama
-
-        Args:
-            model_name: The Ollama model to use (e.g., 'llama2', 'mistral', 'codellama')
-            temperature: Temperature for response generation (0.0-1.0)
-        """
         if not model_name:
             raise ValueError("Model name cannot be empty")
         if not 0.0 <= temperature <= 1.0:
@@ -71,30 +58,16 @@ class ResumeEvaluator:
         self.evaluation_prompt = self._load_evaluation_prompt()
 
     def _load_evaluation_prompt(self) -> str:
-        """Load the evaluation prompt template"""
         return RESUME_EVALUATION_CRITERIA + EVALUATION_JSON_STRUCTURE + "\nResume to evaluate:\n"
 
     def evaluate_resume(self, resume_text: str) -> EvaluationResult:
-        """
-        Evaluate a resume using Ollama
-
-        Args:
-            resume_text: The resume content as text
-
-        Returns:
-            EvaluationResult object with the evaluation details
-        """
-        # Store resume text for name extraction
         self._last_resume_text = resume_text
 
-        # Prepare the full prompt
         full_prompt = self.evaluation_prompt + resume_text
 
-        # Debug: Log the prompt being sent
         logger.info(f"Evaluation prompt being sent: {full_prompt}...")
 
         try:
-            # Call Ollama API
             response = ollama.chat(
                 model=self.model_name,
                 messages=[
@@ -113,16 +86,12 @@ class ResumeEvaluator:
                 }
             )
 
-            # Extract the response
             response_text = response['message']['content']
 
-            # Parse JSON from response
             evaluation_dict = self._extract_json(response_text)
 
-            # Validate with Pydantic
             evaluation_data = EvaluationData(**evaluation_dict)
 
-            # Calculate final scores and create result
             return self._create_evaluation_result(evaluation_data)
 
         except Exception as e:
@@ -130,37 +99,15 @@ class ResumeEvaluator:
             raise
 
     def evaluate_resume_from_json(self, resume_data: JSONResume) -> EvaluationResult:
-        """
-        Evaluate a resume from structured JSON data
-
-        Args:
-            resume_data: JSONResume object with structured resume data
-
-        Returns:
-            EvaluationResult object with the evaluation details
-        """
-        # Store resume data for bonus points calculation
         self._last_resume_data = resume_data
 
-        # Convert JSON resume data to a comprehensive text representation
         resume_text = self._convert_json_resume_to_text(resume_data)
 
-        # Use the existing evaluation logic
         return self.evaluate_resume(resume_text)
 
     def _convert_json_resume_to_text(self, resume_data: JSONResume) -> str:
-        """
-        Convert JSON Resume data to a comprehensive text representation for evaluation.
-
-        Args:
-            resume_data: JSONResume object
-
-        Returns:
-            Formatted text representation of the resume
-        """
         text_parts = []
 
-        # Basic Information
         if resume_data.basics:
             basics = resume_data.basics
             text_parts.append("=== BASIC INFORMATION ===")
@@ -194,7 +141,6 @@ class ResumeEvaluator:
                 for profile in basics.profiles:
                     text_parts.append(f"  - {profile.network}: {profile.username} ({profile.url})")
 
-        # Work Experience
         if resume_data.work:
             text_parts.append("\n=== WORK EXPERIENCE ===")
             for i, work in enumerate(resume_data.work, 1):
@@ -209,7 +155,6 @@ class ResumeEvaluator:
                     for highlight in work.highlights:
                         text_parts.append(f"     • {highlight}")
 
-        # Education
         if resume_data.education:
             text_parts.append("\n=== EDUCATION ===")
             for i, edu in enumerate(resume_data.education, 1):
@@ -223,7 +168,6 @@ class ResumeEvaluator:
                 if edu.courses:
                     text_parts.append(f"   Courses: {', '.join(edu.courses)}")
 
-        # Skills
         if resume_data.skills:
             text_parts.append("\n=== SKILLS ===")
             for skill in resume_data.skills:
@@ -233,7 +177,6 @@ class ResumeEvaluator:
                 if skill.keywords:
                     text_parts.append(f"  Keywords: {', '.join(skill.keywords)}")
 
-        # Projects
         if resume_data.projects:
             text_parts.append("\n=== PROJECTS ===")
             for i, project in enumerate(resume_data.projects, 1):
@@ -249,7 +192,6 @@ class ResumeEvaluator:
                     for highlight in project.highlights:
                         text_parts.append(f"     • {highlight}")
 
-        # Awards
         if resume_data.awards:
             text_parts.append("\n=== AWARDS ===")
             for award in resume_data.awards:
@@ -257,7 +199,6 @@ class ResumeEvaluator:
                 if award.summary:
                     text_parts.append(f"  {award.summary}")
 
-        # Certificates
         if resume_data.certificates:
             text_parts.append("\n=== CERTIFICATES ===")
             for cert in resume_data.certificates:
@@ -265,7 +206,6 @@ class ResumeEvaluator:
                 if cert.url:
                     text_parts.append(f"  URL: {cert.url}")
 
-        # Publications
         if resume_data.publications:
             text_parts.append("\n=== PUBLICATIONS ===")
             for pub in resume_data.publications:
@@ -275,13 +215,11 @@ class ResumeEvaluator:
                 if pub.summary:
                     text_parts.append(f"  {pub.summary}")
 
-        # Languages
         if resume_data.languages:
             text_parts.append("\n=== LANGUAGES ===")
             for lang in resume_data.languages:
                 text_parts.append(f"• {lang.language} - {lang.fluency}")
 
-        # Interests
         if resume_data.interests:
             text_parts.append("\n=== INTERESTS ===")
             for interest in resume_data.interests:
@@ -289,7 +227,6 @@ class ResumeEvaluator:
                 if interest.keywords:
                     text_parts.append(f"  Keywords: {', '.join(interest.keywords)}")
 
-        # References
         if resume_data.references:
             text_parts.append("\n=== REFERENCES ===")
             for ref in resume_data.references:
@@ -297,7 +234,6 @@ class ResumeEvaluator:
                 if ref.reference:
                     text_parts.append(f"  {ref.reference}")
 
-        # Volunteer Experience
         if resume_data.volunteer:
             text_parts.append("\n=== VOLUNTEER EXPERIENCE ===")
             for volunteer in resume_data.volunteer:
@@ -315,10 +251,8 @@ class ResumeEvaluator:
         return "\n".join(text_parts)
 
     def _convert_github_data_to_text(self, github_data: dict) -> str:
-        """Convert GitHub data to a formatted text string for LLM consumption."""
         github_text = "\n\n=== GITHUB DATA ===\n"
 
-        # Add profile information
         if 'profile' in github_data:
             profile = github_data['profile']
             github_text += f"GitHub Profile:\n"
@@ -331,11 +265,10 @@ class ResumeEvaluator:
             github_text += f"- Account Created: {profile.get('created_at', 'N/A')}\n"
             github_text += f"- Last Updated: {profile.get('updated_at', 'N/A')}\n"
 
-        # Add projects information
         if 'projects' in github_data:
             projects = github_data['projects']
             github_text += f"\nGitHub Projects ({len(projects)} total):\n"
-            for i, project in enumerate(projects[:10], 1):  # Limit to first 10 for readability
+            for i, project in enumerate(projects[:10], 1):
                 github_text += f"{i}. {project.get('name', 'N/A')}\n"
                 github_text += f"   Description: {project.get('description', 'N/A')}\n"
                 github_text += f"   URL: {project.get('github_url', 'N/A')}\n"
@@ -349,7 +282,6 @@ class ResumeEvaluator:
         return github_text
 
     def _convert_blog_data_to_text(self, blog_data: dict) -> str:
-        """Convert blog data to a formatted text string for LLM consumption."""
         blog_text = "\n\n=== BLOG DATA ===\n"
         blog_text += f"Total Blogs Found: {blog_data.get('total_blogs', 'N/A')}\n"
         blog_text += f"Blog Score: {blog_data.get('blog_score', 'N/A')}/10.0\n"
@@ -357,7 +289,7 @@ class ResumeEvaluator:
 
         if 'blogs' in blog_data:
             blog_text += "\nBlog URLs Found:\n"
-            for i, blog in enumerate(blog_data['blogs'][:5], 1):  # Limit to first 5
+            for i, blog in enumerate(blog_data['blogs'][:5], 1):
                 blog_text += f"{i}. {blog.get('url', 'N/A')}\n"
                 blog_text += f"   Score: {blog.get('score', 'N/A')}/10.0\n"
                 blog_text += f"   Details: {blog.get('details', 'N/A')}\n"
@@ -366,15 +298,11 @@ class ResumeEvaluator:
         return blog_text
 
     def _extract_json(self, response_text: str) -> dict:
-        """Extract JSON from the model response"""
         try:
-            # Clean the response text
             response_text = response_text.strip()
 
-            # Debug: Print the raw response for debugging
             logger.info(f"Raw AI response: {response_text}...")
 
-            # Remove markdown code blocks if present
             if response_text.startswith('```json'):
                 response_text = response_text[7:]
             elif response_text.startswith('```'):
@@ -384,7 +312,6 @@ class ResumeEvaluator:
 
             response_text = response_text.strip()
 
-            # Try to find JSON in the response using a more robust regex
             json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
             if json_match:
                 json_str = json_match.group()
@@ -393,7 +320,6 @@ class ResumeEvaluator:
 
                 logger.debug(f"Extracted JSON: {json.dumps(parsed_json, indent=2)}")
 
-                # Check if we have a complete response, if not, add missing fields
                 if 'candidate_name' not in parsed_json or 'scores' not in parsed_json:
                     logger.info("Incomplete JSON response detected, adding missing fields...")
                     parsed_json = self._complete_missing_fields(parsed_json)
@@ -401,11 +327,9 @@ class ResumeEvaluator:
                 return parsed_json
             else:
                 logger.info("No JSON match found, trying to parse entire response")
-                # If no JSON found, try to parse the entire response
                 parsed_json = json.loads(response_text)
                 logger.info(f"Parsed entire response as JSON: {json.dumps(parsed_json, indent=2)}")
 
-                # Check if we have a complete response, if not, add missing fields
                 if 'candidate_name' not in parsed_json or 'scores' not in parsed_json:
                     logger.info("Incomplete JSON response detected, adding missing fields...")
                     parsed_json = self._complete_missing_fields(parsed_json)
@@ -415,18 +339,14 @@ class ResumeEvaluator:
             print(f"Failed to parse JSON: {e}")
             print(f"Response text: {response_text}")
 
-            # Try to extract JSON more aggressively
             try:
-                # Look for the largest JSON object
                 json_objects = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
                 if json_objects:
-                    # Use the longest match
                     longest_json = max(json_objects, key=len)
                     logger.info(f"Using longest JSON match: {longest_json[:500]}...")
                     parsed_json = json.loads(longest_json)
                     logger.info(f"Extracted JSON using fallback: {json.dumps(parsed_json, indent=2)}")
 
-                    # Check if we have a complete response, if not, add missing fields
                     if 'candidate_name' not in parsed_json or 'scores' not in parsed_json:
                         logger.info("Incomplete JSON response detected, adding missing fields...")
                         parsed_json = self._complete_missing_fields(parsed_json)
@@ -438,33 +358,27 @@ class ResumeEvaluator:
             raise
 
     def _complete_missing_fields(self, partial_json: dict) -> dict:
-        """Complete missing fields in the JSON response"""
         logger.info(f"Completing missing fields for partial JSON: {json.dumps(partial_json, indent=2)}")
 
-        # Extract candidate name from the resume text if available
         candidate_name = "Unknown Candidate"
         if hasattr(self, '_last_resume_text'):
-            # Try to extract name from the resume text
             lines = self._last_resume_text.split('\n')
-            for line in lines[:5]:  # Check first 5 lines
+            for line in lines[:5]:
                 line = line.strip()
                 if line and len(line) < 100 and len(line.split()) <= 4:
                     if all(word[0].isupper() for word in line.split() if word):
-                        # Remove "Name:" prefix if present
                         if line.startswith("Name:"):
                             candidate_name = line[5:].strip()
                         else:
                             candidate_name = line
                         break
 
-        # Check if partial_json contains scores directly (not nested under 'scores')
         scores = {}
         if 'scores' in partial_json:
             logger.info("Found 'scores' key in partial JSON")
             scores = partial_json['scores']
         elif 'open_source' in partial_json:
             logger.info("Found 'open_source' key in partial JSON, creating scores structure")
-            # The scores are directly in the root
             scores = {
                 "open_source": partial_json.get("open_source", {"score": 0, "max": 35, "evidence": "No data available"}),
                 "self_projects": partial_json.get("self_projects", {"score": 0, "max": 30, "evidence": "No data available"}),
@@ -480,7 +394,6 @@ class ResumeEvaluator:
                 "technical_skills": {"score": 0, "max": 10, "evidence": "No data available"}
             }
 
-        # Try to map alternative category names to expected ones
         category_mapping = {
             'backend': 'production',
             'frontend': 'self_projects',
@@ -498,23 +411,18 @@ class ResumeEvaluator:
             'open_source': 'open_source'
         }
 
-        # Map any found categories to expected ones
         for category, score_data in partial_json.items():
             if isinstance(score_data, dict) and 'score' in score_data:
                 mapped_category = category_mapping.get(category, category)
                 if mapped_category in scores:
                     logger.info(f"Mapping category '{category}' to '{mapped_category}'")
-                    # If we already have a score for this category, combine them
                     if scores[mapped_category]['score'] > 0:
-                        # Combine scores (take the higher score and combine evidence)
                         existing_score = scores[mapped_category]['score']
                         new_score = score_data['score']
                         combined_score = max(existing_score, new_score)
-                        # Cap the score at the maximum
                         max_score = scores[mapped_category]['max']
                         combined_score = min(combined_score, max_score)
 
-                        # Safely get evidence from both sources
                         existing_evidence = scores[mapped_category].get('evidence', 'No evidence available')
                         new_evidence = score_data.get('evidence', 'No evidence available')
                         combined_evidence = f"{existing_evidence} | {new_evidence}"
@@ -525,8 +433,6 @@ class ResumeEvaluator:
                             'evidence': combined_evidence
                         }
                     else:
-                        # First score for this category
-                        # Cap the score at the maximum
                         max_score = scores[mapped_category]['max']
                         capped_score = min(score_data['score'], max_score)
                         scores[mapped_category] = {
@@ -537,20 +443,16 @@ class ResumeEvaluator:
 
         logger.info(f"Final scores structure: {json.dumps(scores, indent=2)}")
 
-        # Fix typos in evidence fields
         for category in scores:
             if category in scores and isinstance(scores[category], dict):
-                if 'eviidence' in scores[category]:  # Fix typo
+                if 'eviidence' in scores[category]:
                     scores[category]['evidence'] = scores[category]['eviidence']
                     del scores[category]['eviidence']
 
-        # Calculate bonus points based on the resume data
         bonus_points = {"total": 0, "breakdown": ""}
         bonus_breakdown = []
 
-        # Check for Google Summer of Code (GSoC) participation
         if hasattr(self, '_last_resume_data') and self._last_resume_data:
-            # Check in projects
             if self._last_resume_data.projects:
                 for project in self._last_resume_data.projects:
                     if project.name and ('GSoC' in project.name or 'Google Summer of Code' in project.name):
@@ -558,23 +460,18 @@ class ResumeEvaluator:
                         bonus_breakdown.append("Google Summer of Code (GSoC) participation")
                         break
 
-            # Check in work experience
             if self._last_resume_data.work:
                 for work in self._last_resume_data.work:
-                    # Check work name for GSoC
                     if work.name and ('GSoC' in work.name or 'Google Summer of Code' in work.name):
                         bonus_points["total"] += 5
                         bonus_breakdown.append("Google Summer of Code (GSoC) participation")
                         break
-                    # Check work summary for GSoC
                     elif work.summary and ('GSoC' in work.summary or 'Google Summer of Code' in work.summary):
                         bonus_points["total"] += 5
                         bonus_breakdown.append("Google Summer of Code (GSoC) participation")
                         break
 
-        # Check for Girl Script Summer of Code participation
         if hasattr(self, '_last_resume_data') and self._last_resume_data:
-            # Check in projects
             if self._last_resume_data.projects:
                 for project in self._last_resume_data.projects:
                     if project.name and 'Girl Script Summer of Code' in project.name:
@@ -582,28 +479,23 @@ class ResumeEvaluator:
                         bonus_breakdown.append("Girl Script Summer of Code participation")
                         break
 
-            # Check in work experience
             if self._last_resume_data.work:
                 for work in self._last_resume_data.work:
-                    # Check work name for Girl Script Summer of Code
                     if work.name and 'Girl Script Summer of Code' in work.name:
                         bonus_points["total"] += 3
                         bonus_breakdown.append("Girl Script Summer of Code participation")
                         break
-                    # Check work summary for Girl Script Summer of Code
                     elif work.summary and 'Girl Script Summer of Code' in work.summary:
                         bonus_points["total"] += 3
                         bonus_breakdown.append("Girl Script Summer of Code participation")
                         break
 
-        # Check for portfolio website (GitHub URL in basics.url)
         if hasattr(self, '_last_resume_data') and self._last_resume_data:
             if self._last_resume_data.basics and self._last_resume_data.basics.url:
                 if 'github.com' in self._last_resume_data.basics.url:
                     bonus_points["total"] += 2
                     bonus_breakdown.append("Portfolio website (GitHub)")
 
-            # Check for LinkedIn profile
             if self._last_resume_data.basics and self._last_resume_data.basics.profiles:
                 for profile in self._last_resume_data.basics.profiles:
                     if profile.network and profile.network.lower() == 'linkedin':
@@ -616,22 +508,17 @@ class ResumeEvaluator:
         else:
             bonus_points["breakdown"] = "No bonus points identified"
 
-        # Generate meaningful strengths and areas for improvement based on available data
         key_strengths = partial_json.get("key_strengths", [])
         areas_for_improvement = partial_json.get("areas_for_improvement", [])
 
-        # If strengths are missing, generate them based on scores
         if not key_strengths or key_strengths == ["No specific strengths identified"]:
             key_strengths = self._generate_strengths_from_scores(scores)
 
-        # If areas for improvement are missing, generate them based on scores
         if not areas_for_improvement or areas_for_improvement == ["No specific areas identified"]:
             areas_for_improvement = self._generate_improvements_from_scores(scores)
 
-        # Post-process to enforce scoring rules
         scores = self._enforce_scoring_rules(scores)
 
-        # Create complete JSON structure
         complete_json = {
             "candidate_name": candidate_name,
             "scores": scores,
@@ -646,17 +533,14 @@ class ResumeEvaluator:
         return complete_json
 
     def _generate_strengths_from_scores(self, scores: dict) -> List[str]:
-        """Generate key strengths based on the available scores and evidence."""
         strengths = []
 
-        # Analyze each category and identify strengths
         for category, score_data in scores.items():
             if isinstance(score_data, dict) and 'score' in score_data and 'evidence' in score_data:
                 score = score_data['score']
                 evidence = score_data['evidence']
 
                 if category == 'open_source' and score > 0:
-                    # Check if the evidence indicates no real open source contributions
                     evidence = score_data.get('evidence', '').lower()
                     if any(phrase in evidence for phrase in [
                         'no evidence of significant open source contributions',
@@ -665,7 +549,6 @@ class ResumeEvaluator:
                         'no contributions to other projects',
                         'lack of contributions to other projects'
                     ]):
-                        # Don't add open source as a strength if evidence indicates no real contributions
                         pass
                     elif score >= 20:
                         strengths.append("Strong open source contributions with significant impact")
@@ -673,7 +556,6 @@ class ResumeEvaluator:
                         strengths.append("Active participation in open source projects")
                     elif score >= 12:
                         strengths.append("Some open source involvement and community contributions")
-                    # Note: Scores below 12 are typically just personal repositories, not true open source contributions
 
                 elif category == 'self_projects' and score > 0:
                     if score >= 20:
@@ -699,7 +581,6 @@ class ResumeEvaluator:
                     elif score >= 3:
                         strengths.append("Demonstrated technical skills in relevant areas")
 
-        # If no specific strengths found, add general ones based on available data
         if not strengths:
             total_score = sum(score_data.get('score', 0) for score_data in scores.values() if isinstance(score_data, dict))
             if total_score > 0:
@@ -707,15 +588,13 @@ class ResumeEvaluator:
             else:
                 strengths.append("Shows interest in software development")
 
-        return strengths[:5]  # Limit to 5 strengths
+        return strengths[:5]
 
     def _enforce_scoring_rules(self, scores: dict) -> dict:
-        """Enforce scoring rules to ensure consistency."""
         if 'open_source' in scores and isinstance(scores['open_source'], dict):
             evidence = scores['open_source'].get('evidence', '').lower()
             current_score = scores['open_source'].get('score', 0)
 
-            # If evidence indicates only personal repositories, cap the score at 10
             if any(phrase in evidence for phrase in [
                 'only personal github repositories',
                 'no contributions to other projects',
@@ -730,17 +609,14 @@ class ResumeEvaluator:
         return scores
 
     def _generate_improvements_from_scores(self, scores: dict) -> List[str]:
-        """Generate areas for improvement based on the available scores and evidence."""
         improvements = []
 
-        # Analyze each category and identify areas for improvement
         for category, score_data in scores.items():
             if isinstance(score_data, dict) and 'score' in score_data and 'evidence' in score_data:
                 score = score_data['score']
                 max_score = score_data.get('max', 0)
                 evidence = score_data['evidence']
 
-                # Calculate percentage score
                 percentage = (score / max_score * 100) if max_score > 0 else 0
 
                 if category == 'open_source' and percentage < 70:
@@ -775,7 +651,6 @@ class ResumeEvaluator:
                     else:
                         improvements.append("Enhance technical depth and competitive programming skills")
 
-        # If no specific improvements found, add general ones
         if not improvements:
             total_score = sum(score_data.get('score', 0) for score_data in scores.values() if isinstance(score_data, dict))
             if total_score < 50:
@@ -783,11 +658,9 @@ class ResumeEvaluator:
             else:
                 improvements.append("Continue developing technical skills and project impact")
 
-        return improvements[:3]  # Limit to 3 improvements
+        return improvements[:3]
 
     def _create_evaluation_result(self, data: EvaluationData) -> EvaluationResult:
-        """Create an EvaluationResult object from the parsed data"""
-        # Calculate total score
         total_score = (
             data.scores.open_source.score +
             data.scores.self_projects.score +
@@ -795,10 +668,8 @@ class ResumeEvaluator:
             data.scores.technical_skills.score
         )
 
-        # Apply bonus and deductions
         final_score = total_score + data.bonus_points.total - data.deductions.total
 
-        # Create category breakdown
         category_breakdown = {
             'Open Source': (
                 data.scores.open_source.score,
@@ -828,7 +699,6 @@ class ResumeEvaluator:
                 data.deductions.reasons
             )
 
-        # Create scoring explanation
         scoring_explanation = self._create_scoring_explanation(data, total_score, final_score)
 
         return EvaluationResult(
@@ -842,37 +712,31 @@ class ResumeEvaluator:
         )
 
     def _create_scoring_explanation(self, data: EvaluationData, total_score: float, final_score: float) -> str:
-        """Create a detailed explanation of how the final score was calculated"""
         explanation_parts = []
 
-        # Base score breakdown
         explanation_parts.append(f"Base Score: {total_score}/100")
         explanation_parts.append(f"  - Open Source: {data.scores.open_source.score}/35")
         explanation_parts.append(f"  - Self Projects: {data.scores.self_projects.score}/30")
         explanation_parts.append(f"  - Production: {data.scores.production.score}/25")
         explanation_parts.append(f"  - Technical Skills: {data.scores.technical_skills.score}/10")
 
-        # Bonus points
         if data.bonus_points.total > 0:
             explanation_parts.append(f"Bonus Points: +{data.bonus_points.total}")
             explanation_parts.append(f"  - {data.bonus_points.breakdown}")
         else:
             explanation_parts.append("Bonus Points: +0")
 
-        # Deductions
         if data.deductions.total > 0:
             explanation_parts.append(f"Deductions: -{data.deductions.total}")
             explanation_parts.append(f"  - {data.deductions.reasons}")
         else:
             explanation_parts.append("Deductions: -0")
 
-        # Final calculation
         explanation_parts.append(f"Final Score: {total_score} + {data.bonus_points.total} - {data.deductions.total} = {final_score}")
 
         return "\n".join(explanation_parts)
 
     def format_evaluation_report(self, result: EvaluationResult) -> str:
-        """Format the evaluation result as a readable report"""
         report = f"""
 Resume Evaluation Report
 ========================
@@ -882,7 +746,6 @@ Final Score: {result.final_score}
 Scoring Explanation:
 -------------------"""
 
-        # Add scoring explanation
         report += f"\n{result.scoring_explanation}"
 
         report += "\n\nCategory Breakdown:"
@@ -913,15 +776,6 @@ Scoring Explanation:
         return report
 
     def evaluate_batch(self, resumes: List[Dict[str, str]]) -> List[EvaluationResult]:
-        """
-        Evaluate multiple resumes
-
-        Args:
-            resumes: List of dictionaries with 'name' and 'content' keys
-
-        Returns:
-            List of EvaluationResult objects
-        """
         results = []
         for resume in resumes:
             try:
@@ -933,14 +787,5 @@ Scoring Explanation:
         return results
 
     def rank_candidates(self, results: List[EvaluationResult]) -> List[Tuple[str, float]]:
-        """
-        Rank candidates by their final scores
-
-        Args:
-            results: List of EvaluationResult objects
-
-        Returns:
-            List of tuples (candidate_name, final_score) sorted by score
-        """
         rankings = [(r.candidate_name, r.final_score) for r in results]
         return sorted(rankings, key=lambda x: x[1], reverse=True)
