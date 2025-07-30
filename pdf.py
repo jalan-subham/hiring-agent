@@ -17,8 +17,6 @@ from models import JSONResume, Basics, Work, Education, Skill, Project, Award, B
 from pymupdf_rag import to_markdown
 from typing import List, Optional, Dict
 from prompt import (
-    JSON_RESUME_EXTRACTION_PROMPT,
-    JSON_RESUME_EXTRACTION_SYSTEM_MESSAGE,
     DEFAULT_MODEL,
     MODEL_PARAMETERS
 )
