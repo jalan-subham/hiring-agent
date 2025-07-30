@@ -27,7 +27,7 @@ from transform import transform_parsed_data
 
 # Configure logging to debug level
 logging.basicConfig(
-    level=logging.ERROR,
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(lineno)d - %(funcName)s - %(levelname)s - %(message)s'
 )
 
@@ -399,15 +399,15 @@ class PDFHandler:
         
         # Extract each section
         for section_name, extractor_func in sections:
-            print(f"\n🔄 Extracting {section_name} section...")
+            logger.info(f"\n🔄 Extracting {section_name} section...")
             section_data = extractor_func(text_content)
             
             if section_data:
                 # Merge the section data into the complete resume
                 complete_resume.update(section_data)
-                print(f"✅ Successfully extracted {section_name} section")
+                logger.info(f"✅ Successfully extracted {section_name} section")
             else:
-                print(f"⚠️ Failed to extract {section_name} section")
+                logger.info(f"⚠️ Failed to extract {section_name} section")
         
         # Note: Individual sections are already properly formatted, no need for additional transformation
         
@@ -418,7 +418,7 @@ class PDFHandler:
                 try:
                     complete_resume['basics'] = Basics(**complete_resume['basics'])
                 except Exception as e:
-                    print(f"❌ Error creating Basics object: {e}")
+                    logger.error(f"❌ Error creating Basics object: {e}")
                     complete_resume['basics'] = None
             
             json_resume = JSONResume(**complete_resume)
