@@ -121,6 +121,8 @@ class Project(BaseModel):
     description: Optional[str] = None
     highlights: Optional[List[str]] = None
     url: Optional[str] = None
+    technologies: Optional[List[str]] = None
+    skills: Optional[List[str]] = None
 
 class JSONResume(BaseModel):
     """Complete JSON Resume format model."""

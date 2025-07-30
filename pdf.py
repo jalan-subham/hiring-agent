@@ -8,6 +8,7 @@ using PyMuPDF (fitz) library.
 import os
 import sys
 import json
+import time
 import ollama
 import logging
 import pymupdf
@@ -19,12 +20,12 @@ from prompts import (
     JSON_RESUME_EXTRACTION_PROMPT,
     JSON_RESUME_EXTRACTION_SYSTEM_MESSAGE,
     DEFAULT_MODEL,
-    DEFAULT_TEMPERATURE
+    MODEL_PARAMETERS
 )
 
 # Configure logging to debug level
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.ERROR,
     format='%(asctime)s - %(name)s - %(lineno)d - %(funcName)s - %(levelname)s - %(message)s'
 )
 
@@ -79,9 +80,14 @@ class PDFHandler:
                 raise FileNotFoundError(f"PDF file not found: {pdf_path}")
             
             # Extract text and links using PyMuPDF (fitz)
-            response = self._extract_with_fitz(pdf_path)
-            logger.debug(f"Extracted text from PDF: {len(response) if response else 0} characters")
-            return response
+            doc = pymupdf.open(pdf_path)
+            pages = range(doc.page_count)
+            resume_text = to_markdown(
+                doc,
+                pages=pages,
+            )
+            logger.debug(f"Extracted text from PDF: {len(resume_text) if resume_text else 0} characters")
+            return resume_text
         except Exception as e:
             print(f"An error occurred while reading the PDF: {e}")
             return None
@@ -113,13 +119,21 @@ class PDFHandler:
             ...         print(f"Successfully extracted resume for: {resume_data.basics.name}")
         """
         try:
+            start_time = time.time()
             # Prepare the comprehensive prompt for JSON Resume extraction
             prompt = JSON_RESUME_EXTRACTION_PROMPT.format(text_content=resume_text)
             
             print(f"🪪 Extracting comprehensive resume data using {DEFAULT_MODEL} model...")
             
+            # Get model-specific parameters
+            model_params = MODEL_PARAMETERS.get(DEFAULT_MODEL, {
+                'temperature': 0.7,
+                'top_p': 0.9
+            })
+            
             response = ollama.chat(
                 model=DEFAULT_MODEL,
+                format=JSONResume.model_json_schema(),
                 messages=[
                     {
                         'role': 'system',
@@ -131,22 +145,48 @@ class PDFHandler:
                     }
                 ],
                 options={
-                    'temperature': DEFAULT_TEMPERATURE,
-                    'top_p': 0.9
+                    'stream': False,
+                    'temperature': model_params['temperature'],
+                    'top_p': model_params['top_p']
                 }
             )
             
             # Extract the response content
             response_text = response['message']['content']
             
+
+            
             # Try to parse JSON from the response
             try:
                 # Clean the response to extract JSON
                 response_text = response_text.strip()
+                
+                # Remove any <think> tags and content
+                if '<think>' in response_text:
+                    # Find the start and end of think tags
+                    think_start = response_text.find('<think>')
+                    think_end = response_text.find('</think>')
+                    if think_start != -1 and think_end != -1:
+                        # Remove the think section
+                        response_text = response_text[:think_start] + response_text[think_end + 8:]
+                
+                # Remove markdown code blocks
                 if response_text.startswith('```json'):
                     response_text = response_text[7:]
+                elif response_text.startswith('```'):
+                    response_text = response_text[3:]
                 if response_text.endswith('```'):
                     response_text = response_text[:-3]
+                
+                # Clean up any remaining markdown or explanatory text
+                response_text = response_text.strip()
+                
+                # Try to find JSON object boundaries
+                json_start = response_text.find('{')
+                json_end = response_text.rfind('}')
+                
+                if json_start != -1 and json_end != -1:
+                    response_text = response_text[json_start:json_end + 1]
                 
                 # Parse JSON
                 parsed_data = json.loads(response_text)
@@ -157,6 +197,10 @@ class PDFHandler:
                 # Create JSONResume object
                 json_resume = JSONResume(**parsed_data)
                 
+                end_time = time.time()
+                total_time = end_time - start_time
+
+                print(f"⏱️ Total time in extract_json_from_text: {total_time:.2f} seconds")
                 return json_resume
                 
             except json.JSONDecodeError as e:
@@ -242,37 +286,22 @@ class PDFHandler:
         try:
             # Handle common issues with LLM responses
             if isinstance(parsed_data, dict):
-                # Ensure all required fields exist with default values
+                # Map LLM response format to expected schema
                 transformed = {
                     'basics': parsed_data.get('basics', {}),
-                    'work': parsed_data.get('work', []),
-                    'volunteer': parsed_data.get('volunteer', []),
-                    'education': parsed_data.get('education', []),
-                    'awards': parsed_data.get('awards', []),
+                    'work': self._transform_work_experience(parsed_data.get('work_experience', parsed_data.get('work', parsed_data.get('experience', [])))),
+                    'volunteer': self._transform_organizations(parsed_data.get('organizations', [])),
+                    'education': self._transform_education(parsed_data.get('education', [])),
+                    'awards': self._transform_achievements(parsed_data.get('achievements', parsed_data.get('awards', parsed_data.get('honors_and_awards', [])))),
                     'certificates': parsed_data.get('certificates', []),
                     'publications': parsed_data.get('publications', []),
-                    'skills': parsed_data.get('skills', []),
+                    'skills': self._transform_skills_comprehensive(parsed_data),
                     'languages': parsed_data.get('languages', []),
                     'interests': parsed_data.get('interests', []),
                     'references': parsed_data.get('references', []),
-                    'projects': parsed_data.get('projects', []),
+                    'projects': self._transform_projects_comprehensive(parsed_data),
                     'meta': parsed_data.get('meta', {})
                 }
-                
-                # Clean up nested structures and handle string-to-object conversions
-                for key in ['work', 'volunteer', 'education', 'awards', 'certificates', 
-                           'publications', 'skills', 'languages', 'interests', 'references', 'projects']:
-                    if key in transformed:
-                        if not isinstance(transformed[key], list):
-                            transformed[key] = []
-                        else:
-                            # Handle cases where LLM returns strings instead of objects
-                            if key == 'interests':
-                                transformed[key] = self._convert_strings_to_interests(transformed[key])
-                            elif key == 'skills':
-                                transformed[key] = self._convert_strings_to_skills(transformed[key])
-                            elif key == 'languages':
-                                transformed[key] = self._convert_strings_to_languages(transformed[key])
                 
                 return transformed
             else:
@@ -282,90 +311,257 @@ class PDFHandler:
             print(f"Error transforming parsed data: {e}")
             return parsed_data
 
-    def _convert_strings_to_interests(self, interests_list: List) -> List[Dict]:
-        """
-        Convert string interests to proper Interest objects.
-        
-        Args:
-            interests_list (List): List of interests that may contain strings or dicts
-            
-        Returns:
-            List[Dict]: List of properly formatted interest objects
-        """
-        converted = []
-        for item in interests_list:
-            if isinstance(item, str):
-                converted.append({'name': item, 'keywords': []})
-            elif isinstance(item, dict):
-                converted.append(item)
-        return converted
-
-    def _convert_strings_to_skills(self, skills_list: List) -> List[Dict]:
-        """
-        Convert string skills to proper Skill objects.
-        
-        Args:
-            skills_list (List): List of skills that may contain strings or dicts
-            
-        Returns:
-            List[Dict]: List of properly formatted skill objects
-        """
-        converted = []
-        for item in skills_list:
-            if isinstance(item, str):
-                converted.append({'name': item, 'level': None, 'keywords': []})
-            elif isinstance(item, dict):
-                converted.append(item)
-        return converted
-
-    def _convert_strings_to_languages(self, languages_list: List) -> List[Dict]:
-        """
-        Convert string languages to proper Language objects.
-        
-        Args:
-            languages_list (List): List of languages that may contain strings or dicts
-            
-        Returns:
-            List[Dict]: List of properly formatted language objects
-        """
-        converted = []
-        for item in languages_list:
-            if isinstance(item, str):
-                converted.append({'language': item, 'fluency': None})
-            elif isinstance(item, dict):
-                converted.append(item)
-        return converted
-    
-    def _extract_with_fitz(self, pdf_path: str) -> Optional[str]:
-        """
-        Extract text and links using PyMuPDF (fitz) for better accuracy.
-        
-        This method uses PyMuPDF to extract text content from PDF files with
-        preserved formatting and structure. It leverages the to_markdown function
-        for enhanced text extraction capabilities.
-        
-        Args:
-            pdf_path (str): Path to the PDF file to process
-            
-        Returns:
-            Optional[str]: Extracted text content in markdown format, or None if failed
-            
-        Raises:
-            Exception: For PDF processing errors
-        """
-        try:
-            doc = pymupdf.open(pdf_path)
-            pages = range(doc.page_count)
-            resume_text = to_markdown(
-                doc,
-                pages=pages,
-            )
-            return resume_text
+    def _transform_work_experience(self, work_list: List) -> List[Dict]:
+        """Transform work_experience to work format."""
+        transformed = []
+        for item in work_list:
+            if isinstance(item, dict):
+                # Handle description as array or string
+                description = item.get('description', '')
+                if isinstance(description, list):
+                    description = ' '.join(description)
                 
-        except Exception as e:
-            print(f"Fitz extraction failed: {e}")
-            return None
+                transformed.append({
+                    'name': item.get('name', ''),
+                    'position': item.get('position', item.get('type', item.get('title', ''))),
+                    'url': item.get('url', None),
+                    'startDate': self._parse_date_range(item.get('years', '')) if 'years' in item else item.get('startDate'),
+                    'endDate': self._parse_end_date(item.get('years', '')) if 'years' in item else item.get('endDate'),
+                    'summary': item.get('summary', description),
+                    'highlights': item.get('highlights', [])
+                })
+        return transformed
 
+    def _transform_organizations(self, org_list: List) -> List[Dict]:
+        """Transform organizations to volunteer format."""
+        transformed = []
+        for item in org_list:
+            if isinstance(item, dict):
+                transformed.append({
+                    'organization': item.get('name', ''),
+                    'position': item.get('role', ''),
+                    'url': item.get('url', None),
+                    'startDate': None,
+                    'endDate': 'Present',
+                    'summary': None,
+                    'highlights': []
+                })
+        return transformed
+
+    def _transform_education(self, edu_list: List) -> List[Dict]:
+        """Transform education format."""
+        transformed = []
+        for item in edu_list:
+            if isinstance(item, dict):
+                # Handle different education formats
+                if 'degree' in item:
+                    # New format from LLM
+                    score = item.get('gpa', item.get('percentage', None))
+                    if score is not None:
+                        score = str(score)  # Ensure score is always a string
+                    
+                    transformed.append({
+                        'institution': item.get('institution', ''),
+                        'url': item.get('url', None),
+                        'area': item.get('degree', '').split(', ')[-1] if ',' in item.get('degree', '') else None,
+                        'studyType': item.get('degree', '').split(', ')[0] if ',' in item.get('degree', '') else item.get('degree', ''),
+                        'startDate': self._parse_date_range(item.get('years', '')),
+                        'endDate': self._parse_end_date(item.get('years', '')),
+                        'score': score,
+                        'courses': []
+                    })
+                else:
+                    # Original format
+                    transformed.append(item)
+        return transformed
+
+    def _transform_achievements(self, achievements_list: List) -> List[Dict]:
+        """Transform achievements to awards format."""
+        transformed = []
+        for item in achievements_list:
+            if isinstance(item, dict):
+                # Handle different award formats
+                title = item.get('title', item.get('name', ''))
+                awarder = item.get('awarder', item.get('organization', ''))
+                summary = item.get('summary', item.get('description', None))
+                
+                transformed.append({
+                    'title': title,
+                    'date': f"{item.get('year', '')}-01" if item.get('year') else None,
+                    'awarder': awarder,
+                    'summary': summary
+                })
+        return transformed
+
+    def _transform_skills(self, skills_list: List) -> List[Dict]:
+        """Transform skills format."""
+        transformed = []
+        for item in skills_list:
+            if isinstance(item, dict):
+                if 'category' in item:
+                    # New format from LLM
+                    transformed.append({
+                        'name': item.get('category', ''),
+                        'level': None,
+                        'keywords': item.get('keywords', [])
+                    })
+                else:
+                    # Original format
+                    transformed.append(item)
+        return transformed
+
+    def _transform_projects(self, projects_list: List) -> List[Dict]:
+        """Transform projects format."""
+        transformed = []
+        for item in projects_list:
+            if isinstance(item, dict):
+                # Extract skills from project name if it contains "|"
+                skills = []
+                project_name = item.get('name', '')
+                if '|' in project_name:
+                    name_parts = project_name.split('|')
+                    if len(name_parts) > 1:
+                        skills_part = name_parts[1].strip()
+                        skills = [skill.strip() for skill in skills_part.split(',')]
+                        # Update project name to remove skills part
+                        item['name'] = name_parts[0].strip()
+                
+                # Handle technologies field (could be string or array)
+                technologies = item.get('technologies', [])
+                if isinstance(technologies, str):
+                    technologies = [tech.strip() for tech in technologies.split(',')]
+                
+                # If no skills extracted from name, use technologies as skills
+                if not skills and technologies:
+                    skills = technologies
+                
+                transformed.append({
+                    'name': item.get('name', ''),
+                    'startDate': None,
+                    'endDate': None,
+                    'description': item.get('description', ''),
+                    'highlights': [item.get('type', '')] if item.get('type') else [],
+                    'url': item.get('url', None),
+                    'technologies': technologies,
+                    'skills': skills
+                })
+        return transformed
+
+    def _transform_skills_comprehensive(self, parsed_data: Dict) -> List[Dict]:
+        """Transform skills from various possible formats."""
+        skills = []
+        
+        # Handle skills as array of strings
+        if 'skills' in parsed_data and isinstance(parsed_data['skills'], list):
+            if parsed_data['skills'] and isinstance(parsed_data['skills'][0], str):
+                skills.append({
+                    'name': 'Programming Languages',
+                    'level': None,
+                    'keywords': parsed_data['skills']
+                })
+            else:
+                skills.extend(self._transform_skills(parsed_data['skills']))
+        
+        # Handle separate skill categories
+        skill_categories = {
+            'librariesFrameworks': 'Libraries/Frameworks',
+            'toolsPlatforms': 'Tools/Platforms', 
+            'databases': 'Databases'
+        }
+        
+        for field, category_name in skill_categories.items():
+            if field in parsed_data and isinstance(parsed_data[field], list):
+                skills.append({
+                    'name': category_name,
+                    'level': None,
+                    'keywords': parsed_data[field]
+                })
+        
+        return skills
+
+    def _transform_projects_comprehensive(self, parsed_data: Dict) -> List[Dict]:
+        """Transform projects from various possible formats."""
+        projects = []
+        
+        # Handle standard projects
+        if 'projects' in parsed_data:
+            projects.extend(self._transform_projects(parsed_data['projects']))
+        
+        # Handle projectsOpenSource
+        if 'projectsOpenSource' in parsed_data:
+            for item in parsed_data['projectsOpenSource']:
+                if isinstance(item, dict):
+                    # Extract skills from project name if it contains "|"
+                    skills = []
+                    project_name = item.get('name', '')
+                    if '|' in project_name:
+                        name_parts = project_name.split('|')
+                        if len(name_parts) > 1:
+                            skills_part = name_parts[1].strip()
+                            skills = [skill.strip() for skill in skills_part.split(',')]
+                            # Update project name to remove skills part
+                            item['name'] = name_parts[0].strip()
+                    
+                    projects.append({
+                        'name': item.get('name', ''),
+                        'startDate': None,
+                        'endDate': None,
+                        'description': item.get('summary', ''),
+                        'highlights': [],
+                        'url': item.get('url', None),
+                        'technologies': item.get('technologies', []),
+                        'skills': skills
+                    })
+        
+        return projects
+
+    def _parse_date_range(self, date_range: str) -> str:
+        """Parse date ranges like 'Mar-May 2020' or '2007-2019'."""
+        if not date_range:
+            return None
+        
+        # Handle "Mar-May 2020" format
+        if ' ' in date_range and any(month in date_range for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
+            parts = date_range.split(' ')
+            if len(parts) >= 2:
+                year = parts[-1]
+                month_map = {'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
+                            'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'}
+                start_month = month_map.get(parts[0], '01')
+                return f"{year}-{start_month}"
+        
+        # Handle "2007-2019" format
+        if '-' in date_range and len(date_range.split('-')) == 2:
+            start_year = date_range.split('-')[0]
+            return f"{start_year}-01"
+        
+        return None
+
+    def _parse_end_date(self, date_range: str) -> str:
+        """Parse end date from date ranges."""
+        if not date_range:
+            return None
+        
+        # Handle "Feb-onwards 2021" format
+        if 'onwards' in date_range:
+            return 'Present'
+        
+        # Handle "Mar-May 2020" format
+        if ' ' in date_range and any(month in date_range for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
+            parts = date_range.split(' ')
+            if len(parts) >= 3:
+                year = parts[-1]
+                month_map = {'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
+                            'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'}
+                end_month = month_map.get(parts[1], '12')
+                return f"{year}-{end_month}"
+        
+        # Handle "2007-2019" format
+        if '-' in date_range and len(date_range.split('-')) == 2:
+            end_year = date_range.split('-')[1]
+            return f"{end_year}-12"
+        
+        return None
 
 def main():
     """
@@ -400,13 +596,12 @@ def main():
             print(extracted_text)
         else:
             print("❌ Failed to extract text from PDF")
-        
-        # Uncomment the following lines to test JSON extraction
-        # resume_data = pdf_handler.extract_json_from_pdf(pdf_path)
-        # if resume_data:
-        #     logger.info(json.dumps(resume_data.model_dump(), indent=2, ensure_ascii=False))
-        # else:
-        #     print("❌ Failed to extract JSON resume data")
+   
+        resume_data = pdf_handler.extract_json_from_pdf(pdf_path)
+        if resume_data:
+            print(json.dumps(resume_data.model_dump(), indent=2, ensure_ascii=False))
+        else:
+            print("❌ Failed to extract JSON resume data")
         
     except Exception as e:
         print(f"❌ Error during PDF processing: {e}")
