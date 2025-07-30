@@ -446,10 +446,9 @@ def to_markdown(
         overlapping_links = []
         for link in links:
             hot = link["from"]  # the hot area of the link
-            middle = (hot.tl + hot.br) / 2  # middle point of hot area
-            if not middle in bbox:
-                continue  # does not touch the bbox
-            overlapping_links.append(link)
+            # Check if the link area intersects with the span bbox
+            if bbox.intersects(hot):
+                overlapping_links.append(link)
         
         if not overlapping_links:
             return None
@@ -457,7 +456,12 @@ def to_markdown(
         # If only one link, return simple format
         if len(overlapping_links) == 1:
             link = overlapping_links[0]
-            return f'[{span_text}]({link["uri"]})'
+            # Check if this looks like a partial URL (starts with http or contains domain parts)
+            if span_text.startswith('http'):
+                # Use the full link URL as the display text
+                return f'[{link["uri"]}]({link["uri"]})'
+            else:
+                return f'[{span_text}]({link["uri"]})'
         
         # Multiple links found - need to split the text
         return _resolve_multiple_links(span_text, overlapping_links, bbox)

@@ -1,36 +1,10 @@
-"""
-Transform Module
-
-This module contains all the transformation functions for processing parsed data
-from LLM responses to conform to the JSON Resume schema.
-"""
-
 from typing import Dict, List, Optional
 
 
 def transform_parsed_data(parsed_data: Dict) -> Dict:
-    """
-    Transform parsed data to handle common LLM response format issues.
-    
-    This method ensures that the parsed JSON data from the LLM response
-    conforms to the expected JSON Resume schema by providing default values
-    for missing fields and converting string arrays to proper object structures.
-    
-    Args:
-        parsed_data (Dict): The parsed JSON data from LLM response
-        
-    Returns:
-        Dict: Cleaned and transformed data conforming to JSON Resume schema
-        
-    Raises:
-        Exception: For data transformation errors
-    """
     try:
-        # Handle common issues with LLM responses
         if isinstance(parsed_data, dict):
-            # Check if this is a complete resume or individual section
             if 'basics' in parsed_data and len(parsed_data) > 1:
-                # This appears to be complete resume data
                 transformed = {
                     'basics': transform_basics(parsed_data.get('basics', {})),
                     'work': transform_work_experience(parsed_data.get('work_experience', parsed_data.get('work', parsed_data.get('experience', [])))),
@@ -47,10 +21,7 @@ def transform_parsed_data(parsed_data: Dict) -> Dict:
                     'meta': parsed_data.get('meta', {})
                 }
             else:
-                # This appears to be individual section data
-                # Apply section-specific transformations
                 if 'basics' in parsed_data:
-                    # For basics section, the data might be nested or direct
                     basics_data = parsed_data.get('basics', parsed_data)
                     transformed = {'basics': transform_basics(basics_data)}
                 elif 'work' in parsed_data or 'work_experience' in parsed_data or 'experience' in parsed_data:
@@ -66,7 +37,6 @@ def transform_parsed_data(parsed_data: Dict) -> Dict:
                     awards_data = parsed_data.get('awards', parsed_data.get('achievements', parsed_data.get('honors_and_awards', [])))
                     transformed = {'awards': transform_achievements(awards_data)}
                 else:
-                    # If we can't determine the section type, return as-is
                     transformed = parsed_data
             
             return transformed
@@ -78,71 +48,67 @@ def transform_parsed_data(parsed_data: Dict) -> Dict:
         return parsed_data
 
 
+def extract_domain_from_url(url: str) -> str:
+    try:
+        if '://' in url:
+            url = url.split('://')[1]
+        domain = url.split('/')[0]
+        if domain.startswith('www.'):
+            domain = domain[4:]
+        return domain
+    except Exception:
+        return ''
+
+def get_network_name(domain: str) -> str:
+    domain_mapping = {
+        'github.com': 'GitHub',
+        'linkedin.com': 'LinkedIn',
+        'leetcode.com': 'LeetCode',
+        'stackoverflow.com': 'Stack Overflow',
+        'hackerrank.com': 'HackerRank',
+        'behance.net': 'Behance',
+        'dev.to': 'DEV Community',
+        'twitter.com': 'X',
+        'x.com': 'X'
+    }
+    return domain_mapping.get(domain, '')
+
 def transform_basics(basics_data: Dict) -> Dict:
-    """Transform basics data and fix network field based on URL."""
     if not isinstance(basics_data, dict):
         return basics_data
         
-    # Handle profiles/profiles array
     profiles = basics_data.get('profiles', [])
     
     transformed_profiles = []
     if isinstance(profiles, list):
         for i, profile in enumerate(profiles):
             if isinstance(profile, dict):
-                # Create a copy of the profile to avoid modifying the original
                 transformed_profile = profile.copy()
                 url = transformed_profile.get('url', '')
                 network = transformed_profile.get('network')
                 
                 if url and network is None:
-                    if 'github.com' in url:
-                        transformed_profile['network'] = 'GitHub'
-                        # Extract username from GitHub URL
-                        username = extract_username_from_url(url, 'github.com')
-                        if username:
-                            transformed_profile['username'] = username
-                    elif 'linkedin.com' in url:
-                        transformed_profile['network'] = 'LinkedIn'
-                        # Extract username from LinkedIn URL
-                        username = extract_username_from_url(url, 'linkedin.com')
-                        if username:
-                            transformed_profile['username'] = username
-                    elif 'leetcode.com' in url:
-                        transformed_profile['network'] = 'LeetCode'
-                        # Extract username from LeetCode URL
-                        username = extract_username_from_url(url, 'leetcode.com')
-                        if username:
-                            transformed_profile['username'] = username
-                    elif 'stackoverflow.com' in url:
-                        transformed_profile['network'] = 'Stack Overflow'
-                        # Extract username from Stack Overflow URL
-                        username = extract_username_from_url(url, 'stackoverflow.com')
-                        if username:
-                            transformed_profile['username'] = username
-                    elif 'hackerrank.com' in url:
-                        transformed_profile['network'] = 'HackerRank'
-                        # Extract username from HackerRank URL
-                        username = extract_username_from_url(url, 'hackerrank.com')
+                    domain = extract_domain_from_url(url)
+                    network_name = get_network_name(domain)
+                    
+                    if network_name:
+                        transformed_profile['network'] = network_name
+                        username = extract_username_from_url(url, domain)
                         if username:
                             transformed_profile['username'] = username
                 transformed_profiles.append(transformed_profile)
     
-    # Update the basics_data with the transformed profiles
     basics_data['profiles'] = transformed_profiles
     return basics_data
 
 
 def extract_username_from_url(url: str, domain: str) -> str:
-    """Extract username from URL based on domain and optional prefix."""
     try:
-        # Remove protocol and domain
         path = url.split(domain)[1] if domain in url else ''
         if not path:
             return ''
         path = path.lstrip('/')
         
-        # Split by '/' and get the parts
         parts = [part for part in path.split('/') if part]
         
         if parts:
@@ -158,11 +124,9 @@ def extract_username_from_url(url: str, domain: str) -> str:
 
 
 def transform_work_experience(work_list: List) -> List[Dict]:
-    """Transform work_experience to work format."""
     transformed = []
     for item in work_list:
         if isinstance(item, dict):
-            # Handle description as array or string
             description = item.get('description', '')
             if isinstance(description, list):
                 description = ' '.join(description)
@@ -180,7 +144,6 @@ def transform_work_experience(work_list: List) -> List[Dict]:
 
 
 def transform_organizations(org_list: List) -> List[Dict]:
-    """Transform organizations to volunteer format."""
     transformed = []
     for item in org_list:
         if isinstance(item, dict):
@@ -197,16 +160,13 @@ def transform_organizations(org_list: List) -> List[Dict]:
 
 
 def transform_education(edu_list: List) -> List[Dict]:
-    """Transform education format."""
     transformed = []
     for item in edu_list:
         if isinstance(item, dict):
-            # Handle different education formats
             if 'degree' in item:
-                # New format from LLM
                 score = item.get('gpa', item.get('percentage', None))
                 if score is not None:
-                    score = str(score)  # Ensure score is always a string
+                    score = str(score)
                 
                 transformed.append({
                     'institution': item.get('institution', ''),
@@ -219,17 +179,14 @@ def transform_education(edu_list: List) -> List[Dict]:
                     'courses': []
                 })
             else:
-                # Original format
                 transformed.append(item)
     return transformed
 
 
 def transform_achievements(achievements_list: List) -> List[Dict]:
-    """Transform achievements to awards format."""
     transformed = []
     for item in achievements_list:
         if isinstance(item, dict):
-            # Handle different award formats
             title = item.get('title', item.get('name', ''))
             awarder = item.get('awarder', item.get('organization', ''))
             summary = item.get('summary', item.get('description', None))
@@ -244,29 +201,24 @@ def transform_achievements(achievements_list: List) -> List[Dict]:
 
 
 def transform_skills(skills_list: List) -> List[Dict]:
-    """Transform skills format."""
     transformed = []
     for item in skills_list:
         if isinstance(item, dict):
             if 'category' in item:
-                # New format from LLM
                 transformed.append({
                     'name': item.get('category', ''),
                     'level': None,
                     'keywords': item.get('keywords', [])
                 })
             else:
-                # Original format
                 transformed.append(item)
     return transformed
 
 
 def transform_projects(projects_list: List) -> List[Dict]:
-    """Transform projects format."""
     transformed = []
     for item in projects_list:
         if isinstance(item, dict):
-            # Extract skills from project name if it contains "|"
             skills = []
             project_name = item.get('name', '')
             if '|' in project_name:
@@ -274,15 +226,12 @@ def transform_projects(projects_list: List) -> List[Dict]:
                 if len(name_parts) > 1:
                     skills_part = name_parts[1].strip()
                     skills = [skill.strip() for skill in skills_part.split(',')]
-                    # Update project name to remove skills part
                     item['name'] = name_parts[0].strip()
             
-            # Handle technologies field (could be string or array)
             technologies = item.get('technologies', [])
             if isinstance(technologies, str):
                 technologies = [tech.strip() for tech in technologies.split(',')]
             
-            # If no skills extracted from name, use technologies as skills
             if not skills and technologies:
                 skills = technologies
             
@@ -300,10 +249,8 @@ def transform_projects(projects_list: List) -> List[Dict]:
 
 
 def transform_skills_comprehensive(parsed_data: Dict) -> List[Dict]:
-    """Transform skills from various possible formats."""
     skills = []
     
-    # Handle skills as array of strings
     if 'skills' in parsed_data and isinstance(parsed_data['skills'], list):
         if parsed_data['skills'] and isinstance(parsed_data['skills'][0], str):
             skills.append({
@@ -314,7 +261,6 @@ def transform_skills_comprehensive(parsed_data: Dict) -> List[Dict]:
         else:
             skills.extend(transform_skills(parsed_data['skills']))
     
-    # Handle separate skill categories
     skill_categories = {
         'librariesFrameworks': 'Libraries/Frameworks',
         'toolsPlatforms': 'Tools/Platforms', 
@@ -333,18 +279,14 @@ def transform_skills_comprehensive(parsed_data: Dict) -> List[Dict]:
 
 
 def transform_projects_comprehensive(parsed_data: Dict) -> List[Dict]:
-    """Transform projects from various possible formats."""
     projects = []
     
-    # Handle standard projects
     if 'projects' in parsed_data:
         projects.extend(transform_projects(parsed_data['projects']))
     
-    # Handle projectsOpenSource
     if 'projectsOpenSource' in parsed_data:
         for item in parsed_data['projectsOpenSource']:
             if isinstance(item, dict):
-                # Extract skills from project name if it contains "|"
                 skills = []
                 project_name = item.get('name', '')
                 if '|' in project_name:
@@ -352,7 +294,6 @@ def transform_projects_comprehensive(parsed_data: Dict) -> List[Dict]:
                     if len(name_parts) > 1:
                         skills_part = name_parts[1].strip()
                         skills = [skill.strip() for skill in skills_part.split(',')]
-                        # Update project name to remove skills part
                         item['name'] = name_parts[0].strip()
                 
                 projects.append({
@@ -370,11 +311,9 @@ def transform_projects_comprehensive(parsed_data: Dict) -> List[Dict]:
 
 
 def parse_date_range(date_range: str) -> str:
-    """Parse date ranges like 'Mar-May 2020' or '2007-2019'."""
     if not date_range:
         return None
     
-    # Handle "Mar-May 2020" format
     if ' ' in date_range and any(month in date_range for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
         parts = date_range.split(' ')
         if len(parts) >= 2:
@@ -384,7 +323,6 @@ def parse_date_range(date_range: str) -> str:
             start_month = month_map.get(parts[0], '01')
             return f"{year}-{start_month}"
     
-    # Handle "2007-2019" format
     if '-' in date_range and len(date_range.split('-')) == 2:
         start_year = date_range.split('-')[0]
         return f"{start_year}-01"
@@ -393,15 +331,12 @@ def parse_date_range(date_range: str) -> str:
 
 
 def parse_end_date(date_range: str) -> str:
-    """Parse end date from date ranges."""
     if not date_range:
         return None
     
-    # Handle "Feb-onwards 2021" format
     if 'onwards' in date_range:
         return 'Present'
     
-    # Handle "Mar-May 2020" format
     if ' ' in date_range and any(month in date_range for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
         parts = date_range.split(' ')
         if len(parts) >= 3:
@@ -411,7 +346,6 @@ def parse_end_date(date_range: str) -> str:
             end_month = month_map.get(parts[1], '12')
             return f"{year}-{end_month}"
     
-    # Handle "2007-2019" format
     if '-' in date_range and len(date_range.split('-')) == 2:
         end_year = date_range.split('-')[1]
         return f"{end_year}-12"
