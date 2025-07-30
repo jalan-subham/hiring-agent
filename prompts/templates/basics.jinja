@@ -1,10 +1,10 @@
 Extract ONLY the basic information (name, email, phone, location, profiles) from this resume.
 
---- The input markdown starts here ---
+--- The input resume markdown starts here ---
 
 {{ text_content }}
 
---- The input markdown ends here ---
+--- The input resume markdown ends here ---
 
 Return ONLY a JSON object with this structure:
 {
@@ -28,9 +28,26 @@ Return ONLY a JSON object with this structure:
   }
 }
 
-**IMPORTANT**: Extract ALL profiles from links section - look for URLs in markdown format [text](url) or plain URLs. Extract ALL of these platforms: github.com, linkedin.com, leetcode.com, stackoverflow.com, hackerrank.com.
+**IMPORTANT**: If there is any About Me or Summary section, add that to the summary section of the basics
 
-**CRITICAL**: You must extract ALL profiles found in the resume. Do not miss any URLs. Look carefully for both markdown format [text](url) and plain URLs.
+**CRITICAL**: For profiles section:
+- ONLY extract URLs that are EXPLICITLY present in the resume markdown
+- Look for URLs in markdown format [text](url) or plain URLs
+- DO NOT create any URLs that are not in the original resume
+- DO NOT add generic platform URLs like "https://github.com" or "https://linkedin.com" unless they are actually present in the resume
+- If no URLs are found in the resume, return an empty profiles array: "profiles": []
+- If a URL is present but you cannot determine the network or username, still include it with the available information
+
+**EXAMPLES OF WHAT NOT TO DO:**
+- Do NOT add "https://github.com" if GitHub is not mentioned in the resume
+- Do NOT add "https://linkedin.com" if LinkedIn is not mentioned in the resume
+- Do NOT add "https://leetcode.com" if LeetCode is not mentioned in the resume
+- Do NOT add "https://stackoverflow.com" if Stack Overflow is not mentioned in the resume
+
+**EXAMPLES OF WHAT TO DO:**
+- If resume contains "GitHub: https://github.com/username", extract it
+- If resume contains "[My Portfolio](https://example.com)", extract it
+- If resume contains "LinkedIn: linkedin.com/in/username", extract it
 
 **IMPORTANT**: Return ONLY valid JSON. Do not include any explanatory text. 
 
