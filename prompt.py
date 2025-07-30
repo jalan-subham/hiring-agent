@@ -6,7 +6,7 @@ Centralizing prompts here makes them easier to maintain and update.
 """
 
 # Constants
-DEFAULT_MODEL = "gemma3:1b"
+DEFAULT_MODEL = "gemma3:4b"
 
 # Model-specific parameters
 MODEL_PARAMETERS = {
@@ -25,6 +25,10 @@ MODEL_PARAMETERS = {
     "gemma3:4b": {
         "temperature": 0.1,
         "top_p": 0.4
+    },
+    "mistral:7b": {
+        "temperature": 0.0,
+        "top_p": 0.9
     }
 }
 

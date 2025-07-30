@@ -13,7 +13,7 @@ import ollama
 import logging
 import pymupdf
 
-from models import JSONResume
+from models import JSONResume, Basics, Work, Education, Skill, Project, Award, BasicsSection, WorkSection, EducationSection, SkillsSection, ProjectsSection, AwardsSection
 from pymupdf_rag import to_markdown
 from typing import List, Optional, Dict
 from prompt import (
@@ -54,31 +54,6 @@ class PDFHandler:
         self.template_manager = TemplateManager()
 
     def extract_text_from_pdf(self, pdf_path: str) -> Optional[str]:
-        """
-        Extract text content from a PDF file with links preserved.
-        
-        This is the main entry point for PDF text extraction. It validates the file,
-        extracts text and hyperlinks using PyMuPDF (fitz), and returns the combined content.
-        
-        Args:
-            pdf_path (str): Path to the PDF file to process
-            
-        Returns:
-            Optional[str]: Extracted text content with URLs preserved, or None if extraction failed
-            
-        Raises:
-            FileNotFoundError: If the PDF file doesn't exist
-            ValueError: If the PDF file is corrupted or encrypted
-            Exception: For other PDF processing errors
-            
-        Example:
-            >>> handler = PDFHandler()
-            >>> text = handler.extract_text_from_pdf("resume.pdf")
-            >>> if text:
-            ...     print(f"Successfully extracted {len(text)} characters")
-            ... else:
-            ...     print("Failed to extract text")
-        """
         try:
             # Validate PDF file
             if not os.path.exists(pdf_path):
@@ -97,18 +72,7 @@ class PDFHandler:
             print(f"An error occurred while reading the PDF: {e}")
             return None
 
-    def _call_llm_for_section(self, section_name: str, text_content: str, prompt: str) -> Optional[Dict]:
-        """
-        Call LLM for a specific section extraction.
-        
-        Args:
-            section_name (str): Name of the section being extracted
-            text_content (str): The resume text content
-            prompt (str): Section-specific prompt
-            
-        Returns:
-            Optional[Dict]: Parsed JSON data for the section, or None if failed
-        """
+    def _call_llm_for_section(self, section_name: str, text_content: str, prompt: str, return_model=None) -> Optional[Dict]:
         try:
             start_time = time.time()
             print(f"🔄 Extracting {section_name} section using {DEFAULT_MODEL}...")
@@ -119,16 +83,16 @@ class PDFHandler:
                 'top_p': 0.9
             })
             
-            # Create a simplified system message for section-specific extraction
-            section_system_message = f"""You are an expert resume parser. Extract ONLY the {section_name} section from resumes and format it according to the JSON Resume specification.
-
-**CRITICAL: You must respond with ONLY valid JSON. Do not include any explanatory text, thinking process, markdown formatting, or <think> tags. Return ONLY the JSON object.**
-
-Return ONLY the {section_name} section in JSON format."""
+            # Get system message from template
+            section_system_message = self.template_manager.render_system_message_template(section_name)
+            if not section_system_message:
+                print(f"❌ Failed to render system message template for {section_name}")
+                return None
             
-            response = ollama.chat(
-                model=DEFAULT_MODEL,
-                messages=[
+            # Prepare chat parameters
+            chat_params = {
+                'model': DEFAULT_MODEL,
+                'messages': [
                     {
                         'role': 'system',
                         'content': section_system_message
@@ -138,18 +102,24 @@ Return ONLY the {section_name} section in JSON format."""
                         'content': prompt
                     }
                 ],
-                options={
+                'options': {
                     'stream': False,
                     'temperature': model_params['temperature'],
                     'top_p': model_params['top_p']
                 }
-            )
+            }
+            
+            # Add format parameter if return_model is provided
+            if return_model:
+                chat_params['format'] = return_model.model_json_schema()
+            
+            response = ollama.chat(**chat_params)
             
             # Extract the response content
             response_text = response['message']['content']
             
             # Debug: Print the raw response for troubleshooting
-            print(f"🔍 Raw response for {section_name}: {response_text[:200]}...")
+            # print(f"🔍 Raw response for {section_name}: {response_text}...")
             
             # Clean and parse JSON response
             try:
@@ -185,11 +155,14 @@ Return ONLY the {section_name} section in JSON format."""
                 parsed_data = json.loads(response_text)
                 print(f"✅ Successfully extracted {section_name} section")
 
+                # Transform the parsed data before returning
+                transformed_data = self._transform_parsed_data(parsed_data)
+                
                 end_time = time.time()
                 total_time = end_time - start_time
                 print(f"\n⏱️ Total time for separate section extraction: {total_time:.2f} seconds")
 
-                return parsed_data
+                return transformed_data
                 
             except json.JSONDecodeError as e:
                 print(f"❌ Error parsing JSON for {section_name} section: {e}")
@@ -201,36 +174,18 @@ Return ONLY the {section_name} section in JSON format."""
             return None
 
     def extract_basics_section(self, resume_text: str) -> Optional[Dict]:
-        """
-        Extract basic information section from resume text.
-        
-        Args:
-            resume_text (str): The resume text content
-            
-        Returns:
-            Optional[Dict]: Basic information data
-        """
         prompt = self.template_manager.render_basics_template(resume_text)
         if not prompt:
             print("❌ Failed to render basics template")
             return None
-        return self._call_llm_for_section("basics", resume_text, prompt)
+        return self._call_llm_for_section("basics", resume_text, prompt, BasicsSection)
 
     def extract_work_section(self, resume_text: str) -> Optional[Dict]:
-        """
-        Extract work experience section from resume text.
-        
-        Args:
-            resume_text (str): The resume text content
-            
-        Returns:
-            Optional[Dict]: Work experience data
-        """
         prompt = self.template_manager.render_work_template(resume_text)
         if not prompt:
             print("❌ Failed to render work template")
             return None
-        return self._call_llm_for_section("work", resume_text, prompt)
+        return self._call_llm_for_section("work", resume_text, prompt, WorkSection)
 
     def extract_education_section(self, resume_text: str) -> Optional[Dict]:
         """
@@ -238,6 +193,7 @@ Return ONLY the {section_name} section in JSON format."""
         
         Args:
             resume_text (str): The resume text content
+            return_model: Pydantic model for response validation (optional)
             
         Returns:
             Optional[Dict]: Education data
@@ -246,7 +202,7 @@ Return ONLY the {section_name} section in JSON format."""
         if not prompt:
             print("❌ Failed to render education template")
             return None
-        return self._call_llm_for_section("education", resume_text, prompt)
+        return self._call_llm_for_section("education", resume_text, prompt, EducationSection)
 
     def extract_skills_section(self, resume_text: str) -> Optional[Dict]:
         """
@@ -254,6 +210,7 @@ Return ONLY the {section_name} section in JSON format."""
         
         Args:
             resume_text (str): The resume text content
+            return_model: Pydantic model for response validation (optional)
             
         Returns:
             Optional[Dict]: Skills data
@@ -262,7 +219,7 @@ Return ONLY the {section_name} section in JSON format."""
         if not prompt:
             print("❌ Failed to render skills template")
             return None
-        return self._call_llm_for_section("skills", resume_text, prompt)
+        return self._call_llm_for_section("skills", resume_text, prompt, SkillsSection)
 
     def extract_projects_section(self, resume_text: str) -> Optional[Dict]:
         """
@@ -270,6 +227,7 @@ Return ONLY the {section_name} section in JSON format."""
         
         Args:
             resume_text (str): The resume text content
+            return_model: Pydantic model for response validation (optional)
             
         Returns:
             Optional[Dict]: Projects data
@@ -278,7 +236,7 @@ Return ONLY the {section_name} section in JSON format."""
         if not prompt:
             print("❌ Failed to render projects template")
             return None
-        return self._call_llm_for_section("projects", resume_text, prompt)
+        return self._call_llm_for_section("projects", resume_text, prompt, ProjectsSection)
 
     def extract_awards_section(self, resume_text: str) -> Optional[Dict]:
         """
@@ -286,6 +244,7 @@ Return ONLY the {section_name} section in JSON format."""
         
         Args:
             resume_text (str): The resume text content
+            return_model: Pydantic model for response validation (optional)
             
         Returns:
             Optional[Dict]: Awards data
@@ -294,37 +253,11 @@ Return ONLY the {section_name} section in JSON format."""
         if not prompt:
             print("❌ Failed to render awards template")
             return None
-        return self._call_llm_for_section("awards", resume_text, prompt)
+        return self._call_llm_for_section("awards", resume_text, prompt, AwardsSection)
 
     def extract_json_from_text(self, resume_text: str) -> Optional[JSONResume]:
-        """
-        Extract comprehensive resume data in JSON Resume format using LLM.
-        
-        This method uses Ollama LLM to parse extracted text and convert it into
-        structured JSON Resume format. It handles JSON parsing, data transformation,
-        and error recovery for malformed LLM responses.
-        
-        Args:
-            resume_text (str): Extracted text from PDF
-            
-        Returns:
-            Optional[JSONResume]: Complete resume data in JSON Resume format, or None if extraction failed
-            
-        Raises:
-            json.JSONDecodeError: If the LLM response cannot be parsed as JSON
-            Exception: For other LLM processing errors
-            
-        Example:
-            >>> handler = PDFHandler()
-            >>> text = handler.extract_text_from_pdf("resume.pdf")
-            >>> if text:
-            ...     resume_data = handler.extract_json_from_text(text)
-            ...     if resume_data:
-            ...         print(f"Successfully extracted resume for: {resume_data.basics.name}")
-        """
         try:
             return self._extract_all_sections_separately(resume_text)
-                
         except Exception as e:
             print(f"Error calling Ollama: {e}")
             return None
@@ -373,13 +306,14 @@ Return ONLY the {section_name} section in JSON format."""
             print(f"❌ Error during PDF to JSON extraction: {e}")
             return None
 
-    def _extract_single_section(self, text_content: str, section_name: str) -> Optional[Dict]:
+    def _extract_single_section(self, text_content: str, section_name: str, return_model=None) -> Optional[Dict]:
         """
         Extract a single section from resume text.
         
         Args:
             text_content (str): The resume text content
             section_name (str): Name of the section to extract
+            return_model: Pydantic model for response validation (optional)
             
         Returns:
             Optional[Dict]: Complete resume data with only the specified section populated
@@ -398,7 +332,7 @@ Return ONLY the {section_name} section in JSON format."""
             print(f"Valid sections: {list(section_extractors.keys())}")
             return None
         
-        section_data = section_extractors[section_name](text_content)
+        section_data = section_extractors[section_name](text_content, return_model)
         if section_data:
             # Create a complete resume structure with only the specified section
             complete_resume = {
@@ -474,11 +408,18 @@ Return ONLY the {section_name} section in JSON format."""
             else:
                 print(f"⚠️ Failed to extract {section_name} section")
         
-        # Transform the data to handle common LLM response format issues
-        complete_resume = self._transform_parsed_data(complete_resume)
+        # Note: Individual sections are already properly formatted, no need for additional transformation
         
         # Create JSONResume object
         try:
+            # Ensure basics is properly formatted as a Basics object
+            if complete_resume.get('basics') and isinstance(complete_resume['basics'], dict):
+                try:
+                    complete_resume['basics'] = Basics(**complete_resume['basics'])
+                except Exception as e:
+                    print(f"❌ Error creating Basics object: {e}")
+                    complete_resume['basics'] = None
+            
             json_resume = JSONResume(**complete_resume)
             
             end_time = time.time()
@@ -511,22 +452,46 @@ Return ONLY the {section_name} section in JSON format."""
         try:
             # Handle common issues with LLM responses
             if isinstance(parsed_data, dict):
-                # Map LLM response format to expected schema
-                transformed = {
-                    'basics': parsed_data.get('basics', {}),
-                    'work': self._transform_work_experience(parsed_data.get('work_experience', parsed_data.get('work', parsed_data.get('experience', [])))),
-                    'volunteer': self._transform_organizations(parsed_data.get('organizations', [])),
-                    'education': self._transform_education(parsed_data.get('education', [])),
-                    'awards': self._transform_achievements(parsed_data.get('achievements', parsed_data.get('awards', parsed_data.get('honors_and_awards', [])))),
-                    'certificates': parsed_data.get('certificates', []),
-                    'publications': parsed_data.get('publications', []),
-                    'skills': self._transform_skills_comprehensive(parsed_data),
-                    'languages': parsed_data.get('languages', []),
-                    'interests': parsed_data.get('interests', []),
-                    'references': parsed_data.get('references', []),
-                    'projects': self._transform_projects_comprehensive(parsed_data),
-                    'meta': parsed_data.get('meta', {})
-                }
+                # Check if this is a complete resume or individual section
+                if 'basics' in parsed_data and len(parsed_data) > 1:
+                    # This appears to be complete resume data
+                    transformed = {
+                        'basics': self._transform_basics(parsed_data.get('basics', {})),
+                        'work': self._transform_work_experience(parsed_data.get('work_experience', parsed_data.get('work', parsed_data.get('experience', [])))),
+                        'volunteer': self._transform_organizations(parsed_data.get('organizations', [])),
+                        'education': self._transform_education(parsed_data.get('education', [])),
+                        'awards': self._transform_achievements(parsed_data.get('achievements', parsed_data.get('awards', parsed_data.get('honors_and_awards', [])))),
+                        'certificates': parsed_data.get('certificates', []),
+                        'publications': parsed_data.get('publications', []),
+                        'skills': self._transform_skills_comprehensive(parsed_data),
+                        'languages': parsed_data.get('languages', []),
+                        'interests': parsed_data.get('interests', []),
+                        'references': parsed_data.get('references', []),
+                        'projects': self._transform_projects_comprehensive(parsed_data),
+                        'meta': parsed_data.get('meta', {})
+                    }
+                else:
+                    # This appears to be individual section data
+                    # Apply section-specific transformations
+                    if 'basics' in parsed_data:
+                        # For basics section, the data might be nested or direct
+                        basics_data = parsed_data.get('basics', parsed_data)
+                        transformed = {'basics': self._transform_basics(basics_data)}
+                    elif 'work' in parsed_data or 'work_experience' in parsed_data or 'experience' in parsed_data:
+                        work_data = parsed_data.get('work', parsed_data.get('work_experience', parsed_data.get('experience', [])))
+                        transformed = {'work': self._transform_work_experience(work_data)}
+                    elif 'education' in parsed_data:
+                        transformed = {'education': self._transform_education(parsed_data.get('education', []))}
+                    elif 'skills' in parsed_data or 'librariesFrameworks' in parsed_data or 'toolsPlatforms' in parsed_data or 'databases' in parsed_data:
+                        transformed = {'skills': self._transform_skills_comprehensive(parsed_data)}
+                    elif 'projects' in parsed_data or 'projectsOpenSource' in parsed_data:
+                        transformed = {'projects': self._transform_projects_comprehensive(parsed_data)}
+                    elif 'awards' in parsed_data or 'achievements' in parsed_data or 'honors_and_awards' in parsed_data:
+                        awards_data = parsed_data.get('awards', parsed_data.get('achievements', parsed_data.get('honors_and_awards', [])))
+                        transformed = {'awards': self._transform_achievements(awards_data)}
+                    else:
+                        # If we can't determine the section type, return as-is
+                        transformed = parsed_data
                 
                 return transformed
             else:
@@ -535,6 +500,83 @@ Return ONLY the {section_name} section in JSON format."""
         except Exception as e:
             print(f"Error transforming parsed data: {e}")
             return parsed_data
+
+    def _transform_basics(self, basics_data: Dict) -> Dict:
+        """Transform basics data and fix network field based on URL."""
+        if not isinstance(basics_data, dict):
+            return basics_data
+            
+        # Handle profiles/profiles array
+        profiles = basics_data.get('profiles', [])
+        
+        transformed_profiles = []
+        if isinstance(profiles, list):
+            for i, profile in enumerate(profiles):
+                if isinstance(profile, dict):
+                    # Create a copy of the profile to avoid modifying the original
+                    transformed_profile = profile.copy()
+                    url = transformed_profile.get('url', '')
+                    network = transformed_profile.get('network')
+                    
+                    if url and network is None:
+                        if 'github.com' in url:
+                            transformed_profile['network'] = 'GitHub'
+                            # Extract username from GitHub URL
+                            username = self._extract_username_from_url(url, 'github.com')
+                            if username:
+                                transformed_profile['username'] = username
+                        elif 'linkedin.com' in url:
+                            transformed_profile['network'] = 'LinkedIn'
+                            # Extract username from LinkedIn URL
+                            username = self._extract_username_from_url(url, 'linkedin.com')
+                            if username:
+                                transformed_profile['username'] = username
+                        elif 'leetcode.com' in url:
+                            transformed_profile['network'] = 'LeetCode'
+                            # Extract username from LeetCode URL
+                            username = self._extract_username_from_url(url, 'leetcode.com')
+                            if username:
+                                transformed_profile['username'] = username
+                        elif 'stackoverflow.com' in url:
+                            transformed_profile['network'] = 'Stack Overflow'
+                            # Extract username from Stack Overflow URL
+                            username = self._extract_username_from_url(url, 'stackoverflow.com')
+                            if username:
+                                transformed_profile['username'] = username
+                        elif 'hackerrank.com' in url:
+                            transformed_profile['network'] = 'HackerRank'
+                            # Extract username from HackerRank URL
+                            username = self._extract_username_from_url(url, 'hackerrank.com')
+                            if username:
+                                transformed_profile['username'] = username
+                    transformed_profiles.append(transformed_profile)
+        
+        # Update the basics_data with the transformed profiles
+        basics_data['profiles'] = transformed_profiles
+        return basics_data
+
+    def _extract_username_from_url(self, url: str, domain: str) -> str:
+        """Extract username from URL based on domain and optional prefix."""
+        try:
+            # Remove protocol and domain
+            path = url.split(domain)[1] if domain in url else ''
+            if not path:
+                return ''
+            path = path.lstrip('/')
+            
+            # Split by '/' and get the parts
+            parts = [part for part in path.split('/') if part]
+            
+            if parts:
+                if domain == 'linkedin.com':
+                    return parts[1]
+                elif domain == 'stackoverflow.com':
+                    return parts[2]
+                else:
+                    return parts[0]
+            return ''
+        except Exception:
+            return ''
 
     def _transform_work_experience(self, work_list: List) -> List[Dict]:
         """Transform work_experience to work format."""

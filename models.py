@@ -15,12 +15,12 @@ class Profile(BaseModel):
     """Social profile information for JSON Resume format."""
     network: Optional[str] = None
     username: Optional[str] = None
-    url: Optional[str] = None
+    url: str
 
 
 class Basics(BaseModel):
     """Basic information for JSON Resume format."""
-    name: Optional[str] = None
+    name: str
     email: Optional[str] = None
     phone: Optional[str] = None
     url: Optional[str] = None
@@ -123,6 +123,38 @@ class Project(BaseModel):
     url: Optional[str] = None
     technologies: Optional[List[str]] = None
     skills: Optional[List[str]] = None
+
+
+# Wrapper models for section extraction
+class BasicsSection(BaseModel):
+    """Basics section containing basic information."""
+    basics: Optional[Basics] = None
+
+
+class WorkSection(BaseModel):
+    """Work section containing a list of work experiences."""
+    work: Optional[List[Work]] = None
+
+
+class EducationSection(BaseModel):
+    """Education section containing a list of education entries."""
+    education: Optional[List[Education]] = None
+
+
+class SkillsSection(BaseModel):
+    """Skills section containing a list of skill categories."""
+    skills: Optional[List[Skill]] = None
+
+
+class ProjectsSection(BaseModel):
+    """Projects section containing a list of projects."""
+    projects: Optional[List[Project]] = None
+
+
+class AwardsSection(BaseModel):
+    """Awards section containing a list of awards."""
+    awards: Optional[List[Award]] = None
+    
 
 class JSONResume(BaseModel):
     """Complete JSON Resume format model."""

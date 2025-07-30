@@ -42,7 +42,8 @@ class TemplateManager:
             'education': 'education.jinja',
             'skills': 'skills.jinja',
             'projects': 'projects.jinja',
-            'awards': 'awards.jinja'
+            'awards': 'awards.jinja',
+            'system_message': 'system_message.jinja'
         }
         
         for section_name, filename in template_files.items():
@@ -157,4 +158,26 @@ class TemplateManager:
         Returns:
             Optional[str]: Rendered template string
         """
-        return self.render_template('awards', text_content=text_content) 
+        return self.render_template('awards', text_content=text_content)
+    
+    def render_system_message_template(self, section_name: str) -> Optional[str]:
+        """
+        Render the system message template.
+        
+        Args:
+            section_name (str): Name of the section being extracted
+            
+        Returns:
+            Optional[str]: Rendered template string
+        """
+        if 'system_message' not in self._templates:
+            print(f"❌ Template not found for section: system_message")
+            print(f"Available sections: {self.get_available_sections()}")
+            return None
+        
+        try:
+            template = self._templates['system_message']
+            return template.render(section_name=section_name)
+        except Exception as e:
+            print(f"❌ Error rendering system message template: {e}")
+            return None 
