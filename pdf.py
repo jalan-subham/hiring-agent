@@ -16,12 +16,13 @@ import pymupdf
 from models import JSONResume
 from pymupdf_rag import to_markdown
 from typing import List, Optional, Dict
-from prompts import (
+from prompt import (
     JSON_RESUME_EXTRACTION_PROMPT,
     JSON_RESUME_EXTRACTION_SYSTEM_MESSAGE,
     DEFAULT_MODEL,
     MODEL_PARAMETERS
 )
+from prompts.template_manager import TemplateManager
 
 # Configure logging to debug level
 logging.basicConfig(
@@ -48,6 +49,10 @@ class PDFHandler:
         >>> print(f"Extracted {len(text)} characters")
     """
     
+    def __init__(self):
+        """Initialize the PDFHandler with template manager."""
+        self.template_manager = TemplateManager()
+
     def extract_text_from_pdf(self, pdf_path: str) -> Optional[str]:
         """
         Extract text content from a PDF file with links preserved.
@@ -91,7 +96,206 @@ class PDFHandler:
         except Exception as e:
             print(f"An error occurred while reading the PDF: {e}")
             return None
-    
+
+    def _call_llm_for_section(self, section_name: str, text_content: str, prompt: str) -> Optional[Dict]:
+        """
+        Call LLM for a specific section extraction.
+        
+        Args:
+            section_name (str): Name of the section being extracted
+            text_content (str): The resume text content
+            prompt (str): Section-specific prompt
+            
+        Returns:
+            Optional[Dict]: Parsed JSON data for the section, or None if failed
+        """
+        try:
+            start_time = time.time()
+            print(f"🔄 Extracting {section_name} section using {DEFAULT_MODEL}...")
+            
+            # Get model-specific parameters
+            model_params = MODEL_PARAMETERS.get(DEFAULT_MODEL, {
+                'temperature': 0.7,
+                'top_p': 0.9
+            })
+            
+            # Create a simplified system message for section-specific extraction
+            section_system_message = f"""You are an expert resume parser. Extract ONLY the {section_name} section from resumes and format it according to the JSON Resume specification.
+
+**CRITICAL: You must respond with ONLY valid JSON. Do not include any explanatory text, thinking process, markdown formatting, or <think> tags. Return ONLY the JSON object.**
+
+Return ONLY the {section_name} section in JSON format."""
+            
+            response = ollama.chat(
+                model=DEFAULT_MODEL,
+                messages=[
+                    {
+                        'role': 'system',
+                        'content': section_system_message
+                    },
+                    {
+                        'role': 'user',
+                        'content': prompt
+                    }
+                ],
+                options={
+                    'stream': False,
+                    'temperature': model_params['temperature'],
+                    'top_p': model_params['top_p']
+                }
+            )
+            
+            # Extract the response content
+            response_text = response['message']['content']
+            
+            # Debug: Print the raw response for troubleshooting
+            print(f"🔍 Raw response for {section_name}: {response_text[:200]}...")
+            
+            # Clean and parse JSON response
+            try:
+                # Clean the response to extract JSON
+                response_text = response_text.strip()
+                
+                # Remove any <think> tags and content
+                if '<think>' in response_text:
+                    think_start = response_text.find('<think>')
+                    think_end = response_text.find('</think>')
+                    if think_start != -1 and think_end != -1:
+                        response_text = response_text[:think_start] + response_text[think_end + 8:]
+                
+                # Remove markdown code blocks
+                if response_text.startswith('```json'):
+                    response_text = response_text[7:]
+                elif response_text.startswith('```'):
+                    response_text = response_text[3:]
+                if response_text.endswith('```'):
+                    response_text = response_text[:-3]
+                
+                # Clean up any remaining markdown or explanatory text
+                response_text = response_text.strip()
+                
+                # Try to find JSON object boundaries
+                json_start = response_text.find('{')
+                json_end = response_text.rfind('}')
+                
+                if json_start != -1 and json_end != -1:
+                    response_text = response_text[json_start:json_end + 1]
+                
+                # Parse JSON
+                parsed_data = json.loads(response_text)
+                print(f"✅ Successfully extracted {section_name} section")
+
+                end_time = time.time()
+                total_time = end_time - start_time
+                print(f"\n⏱️ Total time for separate section extraction: {total_time:.2f} seconds")
+
+                return parsed_data
+                
+            except json.JSONDecodeError as e:
+                print(f"❌ Error parsing JSON for {section_name} section: {e}")
+                print(f"Raw response: {response_text}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Error calling LLM for {section_name} section: {e}")
+            return None
+
+    def extract_basics_section(self, resume_text: str) -> Optional[Dict]:
+        """
+        Extract basic information section from resume text.
+        
+        Args:
+            resume_text (str): The resume text content
+            
+        Returns:
+            Optional[Dict]: Basic information data
+        """
+        prompt = self.template_manager.render_basics_template(resume_text)
+        if not prompt:
+            print("❌ Failed to render basics template")
+            return None
+        return self._call_llm_for_section("basics", resume_text, prompt)
+
+    def extract_work_section(self, resume_text: str) -> Optional[Dict]:
+        """
+        Extract work experience section from resume text.
+        
+        Args:
+            resume_text (str): The resume text content
+            
+        Returns:
+            Optional[Dict]: Work experience data
+        """
+        prompt = self.template_manager.render_work_template(resume_text)
+        if not prompt:
+            print("❌ Failed to render work template")
+            return None
+        return self._call_llm_for_section("work", resume_text, prompt)
+
+    def extract_education_section(self, resume_text: str) -> Optional[Dict]:
+        """
+        Extract education section from resume text.
+        
+        Args:
+            resume_text (str): The resume text content
+            
+        Returns:
+            Optional[Dict]: Education data
+        """
+        prompt = self.template_manager.render_education_template(resume_text)
+        if not prompt:
+            print("❌ Failed to render education template")
+            return None
+        return self._call_llm_for_section("education", resume_text, prompt)
+
+    def extract_skills_section(self, resume_text: str) -> Optional[Dict]:
+        """
+        Extract skills section from resume text.
+        
+        Args:
+            resume_text (str): The resume text content
+            
+        Returns:
+            Optional[Dict]: Skills data
+        """
+        prompt = self.template_manager.render_skills_template(resume_text)
+        if not prompt:
+            print("❌ Failed to render skills template")
+            return None
+        return self._call_llm_for_section("skills", resume_text, prompt)
+
+    def extract_projects_section(self, resume_text: str) -> Optional[Dict]:
+        """
+        Extract projects section from resume text.
+        
+        Args:
+            resume_text (str): The resume text content
+            
+        Returns:
+            Optional[Dict]: Projects data
+        """
+        prompt = self.template_manager.render_projects_template(resume_text)
+        if not prompt:
+            print("❌ Failed to render projects template")
+            return None
+        return self._call_llm_for_section("projects", resume_text, prompt)
+
+    def extract_awards_section(self, resume_text: str) -> Optional[Dict]:
+        """
+        Extract awards section from resume text.
+        
+        Args:
+            resume_text (str): The resume text content
+            
+        Returns:
+            Optional[Dict]: Awards data
+        """
+        prompt = self.template_manager.render_awards_template(resume_text)
+        if not prompt:
+            print("❌ Failed to render awards template")
+            return None
+        return self._call_llm_for_section("awards", resume_text, prompt)
+
     def extract_json_from_text(self, resume_text: str) -> Optional[JSONResume]:
         """
         Extract comprehensive resume data in JSON Resume format using LLM.
@@ -119,96 +323,7 @@ class PDFHandler:
             ...         print(f"Successfully extracted resume for: {resume_data.basics.name}")
         """
         try:
-            start_time = time.time()
-            # Prepare the comprehensive prompt for JSON Resume extraction
-            prompt = JSON_RESUME_EXTRACTION_PROMPT.format(text_content=resume_text)
-            
-            print(f"🪪 Extracting comprehensive resume data using {DEFAULT_MODEL} model...")
-            
-            # Get model-specific parameters
-            model_params = MODEL_PARAMETERS.get(DEFAULT_MODEL, {
-                'temperature': 0.7,
-                'top_p': 0.9
-            })
-            
-            response = ollama.chat(
-                model=DEFAULT_MODEL,
-                format=JSONResume.model_json_schema(),
-                messages=[
-                    {
-                        'role': 'system',
-                        'content': JSON_RESUME_EXTRACTION_SYSTEM_MESSAGE
-                    },
-                    {
-                        'role': 'user',
-                        'content': prompt
-                    }
-                ],
-                options={
-                    'stream': False,
-                    'temperature': model_params['temperature'],
-                    'top_p': model_params['top_p']
-                }
-            )
-            
-            # Extract the response content
-            response_text = response['message']['content']
-            
-
-            
-            # Try to parse JSON from the response
-            try:
-                # Clean the response to extract JSON
-                response_text = response_text.strip()
-                
-                # Remove any <think> tags and content
-                if '<think>' in response_text:
-                    # Find the start and end of think tags
-                    think_start = response_text.find('<think>')
-                    think_end = response_text.find('</think>')
-                    if think_start != -1 and think_end != -1:
-                        # Remove the think section
-                        response_text = response_text[:think_start] + response_text[think_end + 8:]
-                
-                # Remove markdown code blocks
-                if response_text.startswith('```json'):
-                    response_text = response_text[7:]
-                elif response_text.startswith('```'):
-                    response_text = response_text[3:]
-                if response_text.endswith('```'):
-                    response_text = response_text[:-3]
-                
-                # Clean up any remaining markdown or explanatory text
-                response_text = response_text.strip()
-                
-                # Try to find JSON object boundaries
-                json_start = response_text.find('{')
-                json_end = response_text.rfind('}')
-                
-                if json_start != -1 and json_end != -1:
-                    response_text = response_text[json_start:json_end + 1]
-                
-                # Parse JSON
-                parsed_data = json.loads(response_text)
-                
-                # Transform the data to handle common LLM response format issues
-                parsed_data = self._transform_parsed_data(parsed_data)
-                
-                # Create JSONResume object
-                json_resume = JSONResume(**parsed_data)
-                
-                end_time = time.time()
-                total_time = end_time - start_time
-
-                print(f"⏱️ Total time in extract_json_from_text: {total_time:.2f} seconds")
-                return json_resume
-                
-            except json.JSONDecodeError as e:
-                print(f"Error parsing JSON response: {e}")
-                print(f"Raw response: {response_text}")
-                
-                # Fallback: try to extract basic information using simple text analysis
-                return None
+            return self._extract_all_sections_separately(resume_text)
                 
         except Exception as e:
             print(f"Error calling Ollama: {e}")
@@ -219,8 +334,8 @@ class PDFHandler:
         Extract comprehensive resume data in JSON Resume format directly from a PDF file.
         
         This method combines text extraction and JSON conversion into a single convenient
-        function call. It first extracts text from the PDF, then converts it to JSON
-        Resume format using LLM processing.
+        function call. It extracts all sections separately with individual LLM calls
+        for better accuracy and reliability.
         
         Args:
             pdf_path (str): Path to the PDF file to process
@@ -238,8 +353,6 @@ class PDFHandler:
             >>> resume_data = handler.extract_json_from_pdf("resume.pdf")
             >>> if resume_data:
             ...     print(f"Successfully extracted resume for: {resume_data.basics.name}")
-            ... else:
-            ...     print("Failed to extract resume data")
         """
         try:
             # First extract text from the PDF
@@ -252,18 +365,130 @@ class PDFHandler:
             
             print(f"✅ Successfully extracted {len(text_content)} characters from PDF")
             
-            # Then convert the text to JSON Resume format
-            json_resume = self.extract_json_from_text(text_content)
-            
-            if json_resume:
-                print(f"✅ Successfully converted to JSON Resume format")
-                return json_resume
-            else:
-                print("❌ Failed to convert text to JSON Resume format")
-                return None
+            print("🔄 Extracting all sections separately...")
+            return self._extract_all_sections_separately(text_content)
+
                 
         except Exception as e:
             print(f"❌ Error during PDF to JSON extraction: {e}")
+            return None
+
+    def _extract_single_section(self, text_content: str, section_name: str) -> Optional[Dict]:
+        """
+        Extract a single section from resume text.
+        
+        Args:
+            text_content (str): The resume text content
+            section_name (str): Name of the section to extract
+            
+        Returns:
+            Optional[Dict]: Complete resume data with only the specified section populated
+        """
+        section_extractors = {
+            'basics': self.extract_basics_section,
+            'work': self.extract_work_section,
+            'education': self.extract_education_section,
+            'skills': self.extract_skills_section,
+            'projects': self.extract_projects_section,
+            'awards': self.extract_awards_section
+        }
+        
+        if section_name not in section_extractors:
+            print(f"❌ Invalid section name: {section_name}")
+            print(f"Valid sections: {list(section_extractors.keys())}")
+            return None
+        
+        section_data = section_extractors[section_name](text_content)
+        if section_data:
+            # Create a complete resume structure with only the specified section
+            complete_resume = {
+                'basics': None,
+                'work': None,
+                'volunteer': None,
+                'education': None,
+                'awards': None,
+                'certificates': None,
+                'publications': None,
+                'skills': None,
+                'languages': None,
+                'interests': None,
+                'references': None,
+                'projects': None,
+                'meta': None
+            }
+            
+            # Merge the extracted section data
+            complete_resume.update(section_data)
+            return complete_resume
+        
+        return None
+
+    def _extract_all_sections_separately(self, text_content: str) -> Optional[JSONResume]:
+        """
+        Extract all sections separately and merge them into a complete JSON Resume.
+        
+        Args:
+            text_content (str): The resume text content
+            
+        Returns:
+            Optional[JSONResume]: Complete resume data with all sections
+        """
+        start_time = time.time()
+        
+        # Define all sections to extract
+        sections = [
+            ('basics', self.extract_basics_section),
+            ('work', self.extract_work_section),
+            ('education', self.extract_education_section),
+            ('skills', self.extract_skills_section),
+            ('projects', self.extract_projects_section),
+            ('awards', self.extract_awards_section)
+        ]
+        
+        # Initialize complete resume structure
+        complete_resume = {
+            'basics': None,
+            'work': None,
+            'volunteer': None,
+            'education': None,
+            'awards': None,
+            'certificates': None,
+            'publications': None,
+            'skills': None,
+            'languages': None,
+            'interests': None,
+            'references': None,
+            'projects': None,
+            'meta': None
+        }
+        
+        # Extract each section
+        for section_name, extractor_func in sections:
+            print(f"\n🔄 Extracting {section_name} section...")
+            section_data = extractor_func(text_content)
+            
+            if section_data:
+                # Merge the section data into the complete resume
+                complete_resume.update(section_data)
+                print(f"✅ Successfully extracted {section_name} section")
+            else:
+                print(f"⚠️ Failed to extract {section_name} section")
+        
+        # Transform the data to handle common LLM response format issues
+        complete_resume = self._transform_parsed_data(complete_resume)
+        
+        # Create JSONResume object
+        try:
+            json_resume = JSONResume(**complete_resume)
+            
+            end_time = time.time()
+            total_time = end_time - start_time
+            print(f"\n⏱️ Total time for separate section extraction: {total_time:.2f} seconds")
+            
+            return json_resume
+            
+        except Exception as e:
+            print(f"❌ Error creating JSONResume object: {e}")
             return None
 
     def _transform_parsed_data(self, parsed_data: Dict) -> Dict:

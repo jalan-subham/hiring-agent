@@ -6,7 +6,7 @@ Centralizing prompts here makes them easier to maintain and update.
 """
 
 # Constants
-DEFAULT_MODEL = "gemma3:4b"
+DEFAULT_MODEL = "gemma3:1b"
 
 # Model-specific parameters
 MODEL_PARAMETERS = {

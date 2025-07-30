@@ -1,0 +1,31 @@
+Extract ONLY the basic information (name, email, phone, location, profiles) from this resume.
+
+--- The input markdown starts here ---
+
+{{ text_content }}
+
+--- The input markdown ends here ---
+
+Return ONLY a JSON object with this structure:
+{
+  "basics": {
+    "name": "Full name",
+    "email": "Email address", 
+    "phone": "Phone number",
+    "url": null,
+    "summary": null,
+    "location": {
+      "city": "City",
+      "countryCode": "Country code"
+    },
+    "profiles": [
+      {
+        "network": "Platform name",
+        "url": "Full URL",
+        "username": "Username from URL"
+      }
+    ]
+  }
+}
+
+**IMPORTANT**: Return ONLY valid JSON. Do not include any explanatory text. 

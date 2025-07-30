@@ -1,0 +1,23 @@
+Extract ONLY the work experience from this resume.
+
+--- The input markdown starts here ---
+
+{{ text_content }}
+
+--- The input markdown ends here ---
+
+Return ONLY a JSON object with this structure:
+{
+  "work": [
+    {
+      "name": "Company name",
+      "position": "Job title", 
+      "startDate": "Start date (YYYY-MM)",
+      "endDate": "End date (YYYY-MM) or 'Present'",
+      "summary": "Job description",
+      "highlights": ["Achievement 1", "Achievement 2"]
+    }
+  ]
+}
+
+**IMPORTANT**: Return ONLY valid JSON. Do not include any explanatory text. 
