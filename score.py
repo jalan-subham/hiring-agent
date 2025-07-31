@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import logging
 from pdf import PDFHandler
 from github import fetch_and_display_github_info
 from models import JSONResume, EvaluationResult
@@ -11,6 +12,11 @@ from prompt import DEFAULT_MODEL
 
 # Development mode flag - set to False for production
 DEVELOPMENT_MODE = True
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)5s - %(lineno)5d - %(funcName)33s - %(levelname)5s - %(message)s'
+)
 
 def _evaluate_resume(resume_data: JSONResume, github_data: dict = None, blog_data: dict = None) -> Optional[EvaluationResult]:
     """Evaluate the resume using AI and display results."""
@@ -32,8 +38,7 @@ def _evaluate_resume(resume_data: JSONResume, github_data: dict = None, blog_dat
     # Evaluate the enhanced resume
     evaluation_result = evaluator.evaluate_resume(resume_text)
 
-    report = evaluator.format_evaluation_report(evaluation_result)
-    print(report)
+    # print(evaluation_result)
 
     return evaluation_result
 

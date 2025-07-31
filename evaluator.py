@@ -12,10 +12,10 @@ MAX_FINAL_SCORE = 120
 
 from prompt import (
     DEFAULT_MODEL,
-    RESUME_EVALUATION_CRITERIA,
     EVALUATION_JSON_STRUCTURE,
     RESUME_EVALUATION_SYSTEM_MESSAGE,
 )
+from prompts.template_manager import TemplateManager
 
 logger = logging.getLogger(__name__)
 
@@ -55,17 +55,21 @@ class ResumeEvaluator:
 
         self.model_name = model_name
         self.temperature = temperature
+        self.template_manager = TemplateManager()
         self.evaluation_prompt = self._load_evaluation_prompt()
 
     def _load_evaluation_prompt(self) -> str:
-        return RESUME_EVALUATION_CRITERIA + EVALUATION_JSON_STRUCTURE + "\nResume to evaluate:\n"
+        criteria_template = self.template_manager.render_resume_evaluation_criteria_template()
+        if criteria_template is None:
+            raise ValueError("Failed to load resume evaluation criteria template")
+        return criteria_template + EVALUATION_JSON_STRUCTURE + "\nResume to evaluate:\n"
 
     def evaluate_resume(self, resume_text: str) -> EvaluationResult:
         self._last_resume_text = resume_text
 
         full_prompt = self.evaluation_prompt + resume_text
 
-        logger.info(f"Evaluation prompt being sent: {full_prompt}...")
+        # logger.info(f"🔤 Evaluation prompt being sent: {full_prompt}")
 
         try:
             response = ollama.chat(
@@ -83,12 +87,15 @@ class ResumeEvaluator:
                 options={
                     'temperature': self.temperature,
                     'top_p': 0.9
-                }
+                },
+                format= EvaluationData.model_json_schema()
             )
 
             response_text = response['message']['content']
 
-            evaluation_dict = self._extract_json(response_text)
+            logger.info(f"🔤 Prompt response: {response_text}")
+
+            return (response_text)
 
             evaluation_data = EvaluationData(**evaluation_dict)
 
@@ -97,13 +104,6 @@ class ResumeEvaluator:
         except Exception as e:
             print(f"Error evaluating resume: {str(e)}")
             raise
-
-    def evaluate_resume_from_json(self, resume_data: JSONResume) -> EvaluationResult:
-        self._last_resume_data = resume_data
-
-        resume_text = self._convert_json_resume_to_text(resume_data)
-
-        return self.evaluate_resume(resume_text)
 
     def _convert_json_resume_to_text(self, resume_data: JSONResume) -> str:
         text_parts = []
@@ -296,241 +296,6 @@ class ResumeEvaluator:
                 blog_text += "\n"
 
         return blog_text
-
-    def _extract_json(self, response_text: str) -> dict:
-        try:
-            response_text = response_text.strip()
-
-            logger.info(f"Raw AI response: {response_text}...")
-
-            if response_text.startswith('```json'):
-                response_text = response_text[7:]
-            elif response_text.startswith('```'):
-                response_text = response_text[3:]
-            if response_text.endswith('```'):
-                response_text = response_text[:-3]
-
-            response_text = response_text.strip()
-
-            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                logger.debug(f"Found JSON match: {json_str[:500]}...")
-                parsed_json = json.loads(json_str)
-
-                logger.debug(f"Extracted JSON: {json.dumps(parsed_json, indent=2)}")
-
-                if 'candidate_name' not in parsed_json or 'scores' not in parsed_json:
-                    logger.info("Incomplete JSON response detected, adding missing fields...")
-                    parsed_json = self._complete_missing_fields(parsed_json)
-
-                return parsed_json
-            else:
-                logger.info("No JSON match found, trying to parse entire response")
-                parsed_json = json.loads(response_text)
-                logger.info(f"Parsed entire response as JSON: {json.dumps(parsed_json, indent=2)}")
-
-                if 'candidate_name' not in parsed_json or 'scores' not in parsed_json:
-                    logger.info("Incomplete JSON response detected, adding missing fields...")
-                    parsed_json = self._complete_missing_fields(parsed_json)
-
-                return parsed_json
-        except json.JSONDecodeError as e:
-            print(f"Failed to parse JSON: {e}")
-            print(f"Response text: {response_text}")
-
-            try:
-                json_objects = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
-                if json_objects:
-                    longest_json = max(json_objects, key=len)
-                    logger.info(f"Using longest JSON match: {longest_json[:500]}...")
-                    parsed_json = json.loads(longest_json)
-                    logger.info(f"Extracted JSON using fallback: {json.dumps(parsed_json, indent=2)}")
-
-                    if 'candidate_name' not in parsed_json or 'scores' not in parsed_json:
-                        logger.info("Incomplete JSON response detected, adding missing fields...")
-                        parsed_json = self._complete_missing_fields(parsed_json)
-
-                    return parsed_json
-            except Exception as fallback_error:
-                print(f"Fallback JSON extraction also failed: {fallback_error}")
-
-            raise
-
-    def _complete_missing_fields(self, partial_json: dict) -> dict:
-        logger.info(f"Completing missing fields for partial JSON: {json.dumps(partial_json, indent=2)}")
-
-        candidate_name = "Unknown Candidate"
-        if hasattr(self, '_last_resume_text'):
-            lines = self._last_resume_text.split('\n')
-            for line in lines[:5]:
-                line = line.strip()
-                if line and len(line) < 100 and len(line.split()) <= 4:
-                    if all(word[0].isupper() for word in line.split() if word):
-                        if line.startswith("Name:"):
-                            candidate_name = line[5:].strip()
-                        else:
-                            candidate_name = line
-                        break
-
-        scores = {}
-        if 'scores' in partial_json:
-            logger.info("Found 'scores' key in partial JSON")
-            scores = partial_json['scores']
-        elif 'open_source' in partial_json:
-            logger.info("Found 'open_source' key in partial JSON, creating scores structure")
-            scores = {
-                "open_source": partial_json.get("open_source", {"score": 0, "max": 35, "evidence": "No data available"}),
-                "self_projects": partial_json.get("self_projects", {"score": 0, "max": 30, "evidence": "No data available"}),
-                "production": partial_json.get("production", {"score": 0, "max": 25, "evidence": "No data available"}),
-                "technical_skills": partial_json.get("technical_skills", {"score": 0, "max": 10, "evidence": "No data available"})
-            }
-        else:
-            logger.info("No scores structure found, creating default scores")
-            scores = {
-                "open_source": {"score": 0, "max": 35, "evidence": "No data available"},
-                "self_projects": {"score": 0, "max": 30, "evidence": "No data available"},
-                "production": {"score": 0, "max": 25, "evidence": "No data available"},
-                "technical_skills": {"score": 0, "max": 10, "evidence": "No data available"}
-            }
-
-        category_mapping = {
-            'backend': 'production',
-            'frontend': 'self_projects',
-            'general': 'technical_skills',
-            'projects': 'self_projects',
-            'skills': 'technical_skills',
-            'experience': 'production',
-            'programming_skills': 'technical_skills',
-            'problem_solving_skills': 'technical_skills',
-            'problem_solving': 'technical_skills',
-            'communication_skills': 'production',
-            'technical_skills': 'technical_skills',
-            'self_projects': 'self_projects',
-            'production': 'production',
-            'open_source': 'open_source'
-        }
-
-        for category, score_data in partial_json.items():
-            if isinstance(score_data, dict) and 'score' in score_data:
-                mapped_category = category_mapping.get(category, category)
-                if mapped_category in scores:
-                    logger.info(f"Mapping category '{category}' to '{mapped_category}'")
-                    if scores[mapped_category]['score'] > 0:
-                        existing_score = scores[mapped_category]['score']
-                        new_score = score_data['score']
-                        combined_score = max(existing_score, new_score)
-                        max_score = scores[mapped_category]['max']
-                        combined_score = min(combined_score, max_score)
-
-                        existing_evidence = scores[mapped_category].get('evidence', 'No evidence available')
-                        new_evidence = score_data.get('evidence', 'No evidence available')
-                        combined_evidence = f"{existing_evidence} | {new_evidence}"
-
-                        scores[mapped_category] = {
-                            'score': combined_score,
-                            'max': scores[mapped_category]['max'],
-                            'evidence': combined_evidence
-                        }
-                    else:
-                        max_score = scores[mapped_category]['max']
-                        capped_score = min(score_data['score'], max_score)
-                        scores[mapped_category] = {
-                            'score': capped_score,
-                            'max': score_data.get('max', max_score),
-                            'evidence': score_data.get('evidence', 'No evidence available')
-                        }
-
-        logger.info(f"Final scores structure: {json.dumps(scores, indent=2)}")
-
-        for category in scores:
-            if category in scores and isinstance(scores[category], dict):
-                if 'eviidence' in scores[category]:
-                    scores[category]['evidence'] = scores[category]['eviidence']
-                    del scores[category]['eviidence']
-
-        bonus_points = {"total": 0, "breakdown": ""}
-        bonus_breakdown = []
-
-        if hasattr(self, '_last_resume_data') and self._last_resume_data:
-            if self._last_resume_data.projects:
-                for project in self._last_resume_data.projects:
-                    if project.name and ('GSoC' in project.name or 'Google Summer of Code' in project.name):
-                        bonus_points["total"] += 5
-                        bonus_breakdown.append("Google Summer of Code (GSoC) participation")
-                        break
-
-            if self._last_resume_data.work:
-                for work in self._last_resume_data.work:
-                    if work.name and ('GSoC' in work.name or 'Google Summer of Code' in work.name):
-                        bonus_points["total"] += 5
-                        bonus_breakdown.append("Google Summer of Code (GSoC) participation")
-                        break
-                    elif work.summary and ('GSoC' in work.summary or 'Google Summer of Code' in work.summary):
-                        bonus_points["total"] += 5
-                        bonus_breakdown.append("Google Summer of Code (GSoC) participation")
-                        break
-
-        if hasattr(self, '_last_resume_data') and self._last_resume_data:
-            if self._last_resume_data.projects:
-                for project in self._last_resume_data.projects:
-                    if project.name and 'Girl Script Summer of Code' in project.name:
-                        bonus_points["total"] += 3
-                        bonus_breakdown.append("Girl Script Summer of Code participation")
-                        break
-
-            if self._last_resume_data.work:
-                for work in self._last_resume_data.work:
-                    if work.name and 'Girl Script Summer of Code' in work.name:
-                        bonus_points["total"] += 3
-                        bonus_breakdown.append("Girl Script Summer of Code participation")
-                        break
-                    elif work.summary and 'Girl Script Summer of Code' in work.summary:
-                        bonus_points["total"] += 3
-                        bonus_breakdown.append("Girl Script Summer of Code participation")
-                        break
-
-        if hasattr(self, '_last_resume_data') and self._last_resume_data:
-            if self._last_resume_data.basics and self._last_resume_data.basics.url:
-                if 'github.com' in self._last_resume_data.basics.url:
-                    bonus_points["total"] += 2
-                    bonus_breakdown.append("Portfolio website (GitHub)")
-
-            if self._last_resume_data.basics and self._last_resume_data.basics.profiles:
-                for profile in self._last_resume_data.basics.profiles:
-                    if profile.network and profile.network.lower() == 'linkedin':
-                        bonus_points["total"] += 1
-                        bonus_breakdown.append("LinkedIn profile")
-                        break
-
-        if bonus_breakdown:
-            bonus_points["breakdown"] = ", ".join(bonus_breakdown)
-        else:
-            bonus_points["breakdown"] = "No bonus points identified"
-
-        key_strengths = partial_json.get("key_strengths", [])
-        areas_for_improvement = partial_json.get("areas_for_improvement", [])
-
-        if not key_strengths or key_strengths == ["No specific strengths identified"]:
-            key_strengths = self._generate_strengths_from_scores(scores)
-
-        if not areas_for_improvement or areas_for_improvement == ["No specific areas identified"]:
-            areas_for_improvement = self._generate_improvements_from_scores(scores)
-
-        scores = self._enforce_scoring_rules(scores)
-
-        complete_json = {
-            "candidate_name": candidate_name,
-            "scores": scores,
-            "bonus_points": partial_json.get("bonus_points", bonus_points),
-            "deductions": partial_json.get("deductions", {"total": 0, "reasons": "No deductions applied"}),
-            "key_strengths": key_strengths,
-            "areas_for_improvement": areas_for_improvement
-        }
-
-        logger.info(f"Complete JSON structure: {json.dumps(complete_json, indent=2)}")
-
-        return complete_json
 
     def _generate_strengths_from_scores(self, scores: dict) -> List[str]:
         strengths = []
@@ -735,45 +500,6 @@ class ResumeEvaluator:
         explanation_parts.append(f"Final Score: {total_score} + {data.bonus_points.total} - {data.deductions.total} = {final_score}")
 
         return "\n".join(explanation_parts)
-
-    def format_evaluation_report(self, result: EvaluationResult) -> str:
-        report = f"""
-Resume Evaluation Report
-========================
-Candidate Name: {result.candidate_name}
-Final Score: {result.final_score}
-
-Scoring Explanation:
--------------------"""
-
-        report += f"\n{result.scoring_explanation}"
-
-        report += "\n\nCategory Breakdown:"
-        report += "\n-------------------"
-
-        for category, (score, evidence) in result.category_breakdown.items():
-            if category == 'Bonus Points':
-                report += f"\n{category}: +{score} - {evidence}"
-            elif category == 'Deductions':
-                report += f"\n{category}: {score} - {evidence}"
-            else:
-                max_score = {
-                    'Open Source': 35,
-                    'Self Projects': 30,
-                    'Production': 25,
-                    'Technical Skills': 10
-                }.get(category, 0)
-                report += f"\n{category}: {score}/{max_score} - {evidence}"
-
-        report += "\n\nKey Strengths:"
-        for strength in result.key_strengths:
-            report += f"\n- {strength}"
-
-        report += "\n\nAreas for Improvement:"
-        for improvement in result.areas_for_improvement:
-            report += f"\n- {improvement}"
-
-        return report
 
     def evaluate_batch(self, resumes: List[Dict[str, str]]) -> List[EvaluationResult]:
         results = []

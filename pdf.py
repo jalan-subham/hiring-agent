@@ -256,7 +256,6 @@ class PDFHandler:
         }
         
         for section_name in sections:
-            logger.info(f"🔄 Extracting {section_name} section...")
             section_data = self._extract_section_data(text_content, section_name)
             
             if section_data:

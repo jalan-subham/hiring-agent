@@ -44,7 +44,8 @@ class TemplateManager:
             'projects': 'projects.jinja',
             'awards': 'awards.jinja',
             'system_message': 'system_message.jinja',
-            'github_project_selection': 'github_project_selection.jinja'
+            'github_project_selection': 'github_project_selection.jinja',
+            'resume_evaluation_criteria': 'resume_evaluation_criteria.jinja'
         }
         
         for section_name, filename in template_files.items():
@@ -203,4 +204,23 @@ class TemplateManager:
             return template.render(projects_data=projects_data)
         except Exception as e:
             print(f"❌ Error rendering GitHub project selection template: {e}")
+            return None
+    
+    def render_resume_evaluation_criteria_template(self) -> Optional[str]:
+        """
+        Render the resume evaluation criteria template.
+        
+        Returns:
+            Optional[str]: Rendered template string
+        """
+        if 'resume_evaluation_criteria' not in self._templates:
+            print(f"❌ Template not found for section: resume_evaluation_criteria")
+            print(f"Available sections: {self.get_available_sections()}")
+            return None
+        
+        try:
+            template = self._templates['resume_evaluation_criteria']
+            return template.render()
+        except Exception as e:
+            print(f"❌ Error rendering resume evaluation criteria template: {e}")
             return None 

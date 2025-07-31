@@ -23,7 +23,7 @@ MODEL_PARAMETERS = {
         "top_p": 0.4
     },
     "gemma3:4b": {
-        "temperature": 0.1,
+        "temperature": 0.4,
         "top_p": 0.4
     },
     "mistral:7b": {
@@ -34,142 +34,7 @@ MODEL_PARAMETERS = {
 
 
 
-# Resume evaluation criteria prompt
-RESUME_EVALUATION_CRITERIA = """You are evaluating a resume for a Software Developer Engineer position at HackerRank. Analyze the resume data and provide scores based on these criteria:
 
-**CRITICAL: You MUST respond with the EXACT JSON structure specified below. Do not change category names or structure.**
-
-**MANDATORY: You MUST always fill ALL FOUR categories: open_source, self_projects, production, technical_skills.**
-
-**CRITICAL FAIRNESS REQUIREMENTS:**
-**SCORES MUST NEVER DEPEND ON THE FOLLOWING FACTORS:**
-- Candidate's name, gender, or any personal demographic information
-- College, university, or educational institution name
-- CGPA, GPA, or academic grades
-- City, location, or geographical information
-- Any personal characteristics unrelated to technical skills and experience
-
-**EVALUATION MUST BE BASED ONLY ON:**
-- Technical skills and programming languages
-- Project complexity and real-world impact
-- Open source contributions and community involvement
-- Work experience and production-level contributions
-- Technical communication and documentation abilities
-- Problem-solving and algorithmic thinking demonstrated in projects
-
-**CRITICAL PROGRAM DISTINCTION:**
-- "Google Summer of Code (GSoC)" and "Girl Script Summer of Code" are COMPLETELY DIFFERENT programs
-- NEVER use "GSoC" as shorthand for "Girl Script Summer of Code"
-- When you see "Girl Script Summer of Code" in the resume, refer to it as "Girl Script Summer of Code" in your evaluation
-- When you see "Google Summer of Code" in the resume, refer to it as "Google Summer of Code (GSoC)" in your evaluation
-- These are two separate programs with different prestige levels and should be evaluated accordingly
-
-**ANALYSIS INSTRUCTIONS:**
-- Analyze the structured resume data (basics, work, volunteer, projects, skills, etc.)
-- Use GitHub data (if provided in === GITHUB DATA === section) as additional context to enhance your evaluation
-- Use blog data (if provided in === BLOG DATA === section) as additional context for technical communication skills
-
-**SCORING CRITERIA:**
-- For open_source: Analyze all open source contributions, GitHub/GitLab activity, and community involvement. Look for Google Summer of Code (GSoC) participation, Girl Script Summer of Code participation, open source projects, and GitHub contributions. **CRITICAL OPEN SOURCE EVALUATION**:
-  - **HIGH SCORES (25-35 points)**: Contributions to popular open source projects (1000+ stars), significant contributions to well-known projects, Google Summer of Code (GSoC) participation, or substantial community involvement
-  - **MEDIUM SCORES (15-24 points)**: Contributions to smaller open source projects, active GitHub presence with meaningful contributions to other repositories, or participation in open source programs
-  - **LOW SCORES (5-10 points)**: Only personal GitHub repositories with no contributions to other projects, minimal open source activity, or basic GitHub presence. **CRITICAL**: Hacktoberfest participation alone (without evidence of contributions to significant projects) should receive 5-8 points maximum. **MANDATORY DEDUCTION**: If the only open source activity is Hacktoberfest participation without evidence of contributions to significant projects, apply a 3-5 point deduction to the open source score.
-- **VERY LOW SCORES (0-4 points)**: No GitHub presence, only very basic personal repositories, or repositories that are clearly tutorial-based with no community involvement
-  - **ZERO SCORES (0-4 points)**: No GitHub presence or only very basic personal repositories with no community involvement
-  - **CRITICAL**: Having personal GitHub repositories does NOT constitute open source contribution. True open source contribution means contributing to OTHER people's projects or the broader community. **SPECIFIC PROJECT TYPES TO SCORE LOW**: Exercise apps using public APIs, recipe sharing applications, basic sentiment analysis using standard libraries (NLTK, scikit-learn), and simple CRUD applications should all receive low scores (1-9 points) as they are common tutorial projects with minimal technical complexity.
-- For self_projects: Analyze the 'projects' section and any personal, hackathon, or side projects. **CRITICAL PROJECT EVALUATION**:
-  - **HIGH SCORES (20-30 points)**: Complex projects with real-world impact, advanced architecture, multiple technologies, user adoption, or contributions to popular open source projects
-  - **MEDIUM SCORES (10-19 points)**: Projects with some complexity, good documentation, multiple features, or moderate technical challenge
-  - **LOW SCORES (1-9 points)**: Simple tutorial projects (todo lists, calculators, basic CRUD apps, weather apps, note-taking apps, recipe apps, exercise apps, sentiment analysis with standard libraries), classroom assignments, or projects with minimal technical complexity
-  - **ZERO SCORES (0 points)**: If there are no projects or only extremely basic projects that demonstrate no technical skills
-  - **DEDUCTIONS**: Apply 2-5 point deductions for resumes with only simple tutorial projects (todo lists, calculators, basic CRUD apps) as these indicate lack of technical depth
-  - **PROJECT LINK REQUIREMENTS**: Projects without active links, GitHub repositories, or live demos should receive significantly lower scores:
-    - **NO LINKS**: Projects with no URLs, GitHub links, or live demos should receive 30-50% lower scores than similar projects with links
-    - **INACTIVE LINKS**: Projects with broken or inactive links should receive 20-30% lower scores
-    - **ONLY GITHUB**: Projects with only GitHub links (no live demo) are acceptable but should be scored slightly lower than projects with both GitHub and live demos
-    - **LIVE DEMO BONUS**: Projects with working live demos should receive 10-20% higher scores than similar projects without live demos
-- For production: Analyze the 'work' and 'volunteer' sections for any real-world, internship, or production experience. If there is any work, internship, or volunteer experience, you MUST score this category and provide evidence. **SPECIAL CONSIDERATION FOR STARTUP EXPERIENCE**: Give extra points for founder roles, co-founder positions, or early-stage engineer roles (first 10-20 employees) at startups, as these demonstrate exceptional initiative, technical leadership, and ability to build products from scratch.
-- For technical_skills: Analyze the 'skills', 'languages', and any evidence of technical breadth or problem-solving in projects, work, or competitions. You MUST score this category and provide evidence.
-
-**PROJECT COMPLEXITY ASSESSMENT:**
-**Simple/Basic Projects (Low Impact):**
-- Todo list applications
-- Calculator applications
-- Basic CRUD applications
-- Weather apps using public APIs
-- Note-taking applications
-- Simple portfolio websites
-- Basic form applications
-- "Hello World" applications
-- Classroom assignment projects
-- Tutorial-based projects
-- Recipe sharing applications
-- Exercise/health apps using public APIs
-- Basic sentiment analysis using standard libraries (NLTK, scikit-learn)
-- Simple e-commerce applications
-- Basic social media clones
-- Todo apps with basic features
-- Simple blog applications
-
-**Complex/Advanced Projects (High Impact):**
-- Full-stack applications with multiple features
-- Projects with user authentication and databases
-- Machine learning or AI applications
-- Real-time applications (chat, streaming, etc.)
-- Mobile applications with native features
-- Projects with microservices architecture
-- Contributions to popular open source projects
-- Projects with significant user adoption
-- Projects solving real-world problems
-- Projects demonstrating advanced algorithms or data structures
-
-**BONUS POINTS:**
-- +5 points for Google Summer of Code (GSoC) participation
-- +3 points for Girl Script Summer of Code participation
-- +3-5 points for startup founder/co-founder experience (demonstrates exceptional initiative and leadership)
-- +2-3 points for early-stage engineer experience (first 10-20 employees at a startup)
-- +2 points for portfolio website (GitHub URL in basics.url)
-- +1 point for LinkedIn profile
-- +1-3 points for high-quality technical blogs (if blog data provided)
-
-**DEDUCTIONS FOR SIMPLE PROJECTS:**
-- -2 to -5 points if resume contains only simple tutorial projects (todo lists, calculators, basic CRUD apps, recipe apps, exercise apps, sentiment analysis with standard libraries)
-- -1 to -3 points for each simple project beyond the first one
-- -1 point for projects with generic names like "Calculator", "Todo App", "Weather App", "Recipe App", "Exercise App"
-- -2 points if all projects are classroom assignments or tutorial-based
-- -1 to -2 points for projects that are clearly tutorial-based or follow common online course patterns
-- **MANDATORY DEDUCTIONS**: Apply 3-5 point deductions for resumes containing only basic tutorial projects like exercise apps, recipe apps, or sentiment analysis using standard libraries (NLTK, scikit-learn) as these are common beginner projects with minimal technical complexity
-- **CRITICAL**: When evaluating projects, if ALL projects are tutorial-based (exercise apps, recipe apps, sentiment analysis, todo apps, weather apps), apply additional 2-3 point deductions as this indicates lack of original thinking and technical depth
-
-**DEDUCTIONS FOR PROJECTS WITHOUT LINKS:**
-- -3 to -5 points for each project without any GitHub link, live demo, or active URL
-- -2 to -3 points for each project with only GitHub link but no live demo
-- -1 to -2 points for each project with broken or inactive links
-- -1 point for projects with generic descriptions and no evidence of implementation
-- **CRITICAL**: Projects without links are difficult to verify and demonstrate lack of transparency and professionalism
-
-**IMPORTANT:**
-- Look for Google Summer of Code (GSoC), Girl Script Summer of Code, Outreachy, Season of Docs, or similar open source programs in the resume and award bonus points
-- When GitHub data is provided, analyze the GitHub profile and repository information to enhance your evaluation
-- When blog data is provided, analyze technical blog posts, writing quality, topics covered, and frequency of posting
-- **CRITICAL**: Assess project complexity and impact, not just quantity. A single complex project is worth more than multiple simple ones.
-- **CRITICAL FAIRNESS**: Ignore all personal demographic information, educational institution names, academic grades, and geographical location when scoring. Focus solely on technical skills, project quality, and professional experience.
-- **PROJECT LINK VERIFICATION**: Always check if projects have active GitHub links, live demos, or working URLs. Projects without verifiable links should receive significantly lower scores as they cannot be validated. This demonstrates transparency and professionalism in showcasing work.
-
-**CRITICAL: You MUST respond with ONLY the scoring JSON structure. DO NOT return a resume summary, skills list, or experience description. RETURN ONLY THE SCORING EVALUATION.**
-
-**CRITICAL SCORING CONSISTENCY:**
-- **ALWAYS** score tutorial-based projects (exercise apps, recipe apps, sentiment analysis, todo apps) as LOW SCORES (1-9 points)
-- **ALWAYS** score personal GitHub repositories (no contributions to other projects) as LOW SCORES (5-10 points) for open source
-- **ALWAYS** apply deductions for resumes with only tutorial projects
-- **NEVER** give high scores for simple projects that are clearly tutorial-based
-- **BE CONSISTENT** - the same types of projects should receive similar scores across different evaluations
-- **MANDATORY**: When GitHub data shows all projects are 'self_project' type (single contributor), score open_source category as 5-10 points maximum
-- **MANDATORY**: When GitHub data shows all projects are 'self_project' type, apply 3-5 point deductions for lack of true open source contributions
-- **CRITICAL**: For candidates with only personal GitHub repositories (self_project type), open source score should NEVER exceed 10 points
-- **CRITICAL**: For candidates with only tutorial-based projects (exercise apps, recipe apps, sentiment analysis), self_projects score should NEVER exceed 15 points
-- **MANDATORY ENFORCEMENT**: If the evidence states "only personal GitHub repositories" or "no contributions to other projects", the open source score MUST be 10 points or less, regardless of any other factors
-"""
 
 # JSON structure for evaluation response
 EVALUATION_JSON_STRUCTURE = """Analyze the following resume and provide a JSON response with this EXACT structure (all fields are required):
