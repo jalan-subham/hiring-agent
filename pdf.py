@@ -45,10 +45,7 @@ class PDFHandler:
             start_time = time.time()
             logger.info(f"🔄 Extracting {section_name} section using {DEFAULT_MODEL}...")
             
-            model_params = MODEL_PARAMETERS.get(DEFAULT_MODEL, {
-                'temperature': 0.7,
-                'top_p': 0.9
-            })
+            model_params = MODEL_PARAMETERS.get(DEFAULT_MODEL)
             
             section_system_message = self.template_manager.render_system_message_template(section_name)
             if not section_system_message:

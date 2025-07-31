@@ -10,50 +10,19 @@ MAX_BONUS_POINTS = 20
 MIN_FINAL_SCORE = -20
 MAX_FINAL_SCORE = 120
 
-from prompt import (
-    DEFAULT_MODEL,
-    EVALUATION_JSON_STRUCTURE,
-)
+from prompt import DEFAULT_MODEL
 from prompts.template_manager import TemplateManager
 
 logger = logging.getLogger(__name__)
 
-class EvaluationResult(BaseModel):
-    candidate_name: str
-    total_score: float = Field(ge=0, le=100)
-    final_score: float
-    category_breakdown: Dict[str, Tuple[float, str]]
-    scoring_explanation: str
-    key_strengths: List[str]
-    areas_for_improvement: List[str]
-
-    class Config:
-        use_enum_values = True
-
-    @field_validator('final_score')
-    @classmethod
-    def validate_final_score(cls, v, info):
-        if info.data and 'total_score' in info.data:
-            if v < MIN_FINAL_SCORE or v > MAX_FINAL_SCORE:
-                raise ValueError(f'Final score must be between {MIN_FINAL_SCORE} and {MAX_FINAL_SCORE}')
-        return v
-
-    def to_json(self) -> str:
-        return self.json(indent=2)
-
-    def to_dict(self) -> dict:
-        return self.dict()
-
 
 class ResumeEvaluator:
-    def __init__(self, model_name: str = DEFAULT_MODEL, temperature: float = 0.2):
+    def __init__(self, model_name: str = DEFAULT_MODEL, model_params: dict = None):
         if not model_name:
             raise ValueError("Model name cannot be empty")
-        if not 0.0 <= temperature <= 1.0:
-            raise ValueError("Temperature must be between 0.0 and 1.0")
 
         self.model_name = model_name
-        self.temperature = temperature
+        self.model_params = model_params
         self.template_manager = TemplateManager()
 
     def _load_evaluation_prompt(self, resume_text: str) -> str:
@@ -62,7 +31,7 @@ class ResumeEvaluator:
             raise ValueError("Failed to load resume evaluation criteria template")
         return criteria_template
 
-    def evaluate_resume(self, resume_text: str) -> EvaluationResult:
+    def evaluate_resume(self, resume_text: str) -> EvaluationData:
         self._last_resume_text = resume_text
 
         full_prompt = self._load_evaluation_prompt(resume_text)
@@ -87,8 +56,8 @@ class ResumeEvaluator:
                     }
                 ],
                 options={
-                    'temperature': self.temperature,
-                    'top_p': 0.9
+                    'temperature': self.model_params['temperature'],
+                    'top_p': self.model_params['top_p']
                 },
                 format= EvaluationData.model_json_schema()
             )
@@ -101,7 +70,7 @@ class ResumeEvaluator:
 
             evaluation_data = EvaluationData(**evaluation_dict)
 
-            return self._create_evaluation_result(evaluation_data)
+            return evaluation_data
 
         except Exception as e:
             print(f"Error evaluating resume: {str(e)}")
@@ -298,222 +267,3 @@ class ResumeEvaluator:
                 blog_text += "\n"
 
         return blog_text
-
-    def _generate_strengths_from_scores(self, scores: dict) -> List[str]:
-        strengths = []
-
-        for category, score_data in scores.items():
-            if isinstance(score_data, dict) and 'score' in score_data and 'evidence' in score_data:
-                score = score_data['score']
-                evidence = score_data['evidence']
-
-                if category == 'open_source' and score > 0:
-                    evidence = score_data.get('evidence', '').lower()
-                    if any(phrase in evidence for phrase in [
-                        'no evidence of significant open source contributions',
-                        'no demonstrable open source activity',
-                        'only personal github repositories',
-                        'no contributions to other projects',
-                        'lack of contributions to other projects'
-                    ]):
-                        pass
-                    elif score >= 20:
-                        strengths.append("Strong open source contributions with significant impact")
-                    elif score >= 15:
-                        strengths.append("Active participation in open source projects")
-                    elif score >= 12:
-                        strengths.append("Some open source involvement and community contributions")
-
-                elif category == 'self_projects' and score > 0:
-                    if score >= 20:
-                        strengths.append("Impressive portfolio of self-initiated projects")
-                    elif score >= 10:
-                        strengths.append("Good variety of personal projects demonstrating technical skills")
-                    elif score >= 5:
-                        strengths.append("Some personal projects showing initiative")
-
-                elif category == 'production' and score > 0:
-                    if score >= 15:
-                        strengths.append("Significant production experience at scale")
-                    elif score >= 10:
-                        strengths.append("Good production environment experience")
-                    elif score >= 5:
-                        strengths.append("Some production-level work experience")
-
-                elif category == 'technical_skills' and score > 0:
-                    if score >= 7:
-                        strengths.append("Strong technical skills across multiple technologies")
-                    elif score >= 5:
-                        strengths.append("Good technical breadth and problem-solving abilities")
-                    elif score >= 3:
-                        strengths.append("Demonstrated technical skills in relevant areas")
-
-        if not strengths:
-            total_score = sum(score_data.get('score', 0) for score_data in scores.values() if isinstance(score_data, dict))
-            if total_score > 0:
-                strengths.append("Demonstrates technical capabilities and learning potential")
-            else:
-                strengths.append("Shows interest in software development")
-
-        return strengths[:5]
-
-    def _enforce_scoring_rules(self, scores: dict) -> dict:
-        if 'open_source' in scores and isinstance(scores['open_source'], dict):
-            evidence = scores['open_source'].get('evidence', '').lower()
-            current_score = scores['open_source'].get('score', 0)
-
-            if any(phrase in evidence for phrase in [
-                'only personal github repositories',
-                'no contributions to other projects',
-                'no evidence of significant open source contributions',
-                'only personal projects'
-            ]):
-                if current_score > 10:
-                    logger.info(f"Enforcing scoring rule: reducing open source score from {current_score} to 10")
-                    scores['open_source']['score'] = 10
-                    scores['open_source']['evidence'] += " (Score capped at 10 due to only personal repositories)"
-
-        return scores
-
-    def _generate_improvements_from_scores(self, scores: dict) -> List[str]:
-        improvements = []
-
-        for category, score_data in scores.items():
-            if isinstance(score_data, dict) and 'score' in score_data and 'evidence' in score_data:
-                score = score_data['score']
-                max_score = score_data.get('max', 0)
-                evidence = score_data['evidence']
-
-                percentage = (score / max_score * 100) if max_score > 0 else 0
-
-                if category == 'open_source' and percentage < 70:
-                    if percentage < 30:
-                        improvements.append("Significantly increase open source contributions and community engagement")
-                    elif percentage < 50:
-                        improvements.append("Build more substantial open source presence and contributions")
-                    else:
-                        improvements.append("Enhance open source contributions and project impact")
-
-                elif category == 'self_projects' and percentage < 70:
-                    if percentage < 30:
-                        improvements.append("Develop more complex and impactful personal projects")
-                    elif percentage < 50:
-                        improvements.append("Create projects with better documentation and user adoption")
-                    else:
-                        improvements.append("Enhance project complexity and real-world impact")
-
-                elif category == 'production' and percentage < 70:
-                    if percentage < 30:
-                        improvements.append("Gain more production environment experience")
-                    elif percentage < 50:
-                        improvements.append("Seek opportunities for larger-scale production work")
-                    else:
-                        improvements.append("Expand production experience and responsibilities")
-
-                elif category == 'technical_skills' and percentage < 70:
-                    if percentage < 30:
-                        improvements.append("Strengthen technical skills and problem-solving abilities")
-                    elif percentage < 50:
-                        improvements.append("Develop broader technical expertise")
-                    else:
-                        improvements.append("Enhance technical depth and competitive programming skills")
-
-        if not improvements:
-            total_score = sum(score_data.get('score', 0) for score_data in scores.values() if isinstance(score_data, dict))
-            if total_score < 50:
-                improvements.append("Focus on building a stronger technical portfolio")
-            else:
-                improvements.append("Continue developing technical skills and project impact")
-
-        return improvements[:3]
-
-    def _create_evaluation_result(self, data: EvaluationData) -> EvaluationResult:
-        total_score = (
-            data.scores.open_source.score +
-            data.scores.self_projects.score +
-            data.scores.production.score +
-            data.scores.technical_skills.score
-        )
-
-        final_score = total_score + data.bonus_points.total - data.deductions.total
-
-        category_breakdown = {
-            'Open Source': (
-                data.scores.open_source.score,
-                data.scores.open_source.evidence
-            ),
-            'Self Projects': (
-                data.scores.self_projects.score,
-                data.scores.self_projects.evidence
-            ),
-            'Production': (
-                data.scores.production.score,
-                data.scores.production.evidence
-            ),
-            'Technical Skills': (
-                data.scores.technical_skills.score,
-                data.scores.technical_skills.evidence
-            ),
-            'Bonus Points': (
-                data.bonus_points.total,
-                data.bonus_points.breakdown
-            )
-        }
-
-        if data.deductions.total > 0:
-            category_breakdown['Deductions'] = (
-                -data.deductions.total,
-                data.deductions.reasons
-            )
-
-        scoring_explanation = self._create_scoring_explanation(data, total_score, final_score)
-
-        return EvaluationResult(
-            candidate_name=data.candidate_name,
-            total_score=total_score,
-            final_score=final_score,
-            category_breakdown=category_breakdown,
-            scoring_explanation=scoring_explanation,
-            key_strengths=data.key_strengths,
-            areas_for_improvement=data.areas_for_improvement
-        )
-
-    def _create_scoring_explanation(self, data: EvaluationData, total_score: float, final_score: float) -> str:
-        explanation_parts = []
-
-        explanation_parts.append(f"Base Score: {total_score}/100")
-        explanation_parts.append(f"  - Open Source: {data.scores.open_source.score}/35")
-        explanation_parts.append(f"  - Self Projects: {data.scores.self_projects.score}/30")
-        explanation_parts.append(f"  - Production: {data.scores.production.score}/25")
-        explanation_parts.append(f"  - Technical Skills: {data.scores.technical_skills.score}/10")
-
-        if data.bonus_points.total > 0:
-            explanation_parts.append(f"Bonus Points: +{data.bonus_points.total}")
-            explanation_parts.append(f"  - {data.bonus_points.breakdown}")
-        else:
-            explanation_parts.append("Bonus Points: +0")
-
-        if data.deductions.total > 0:
-            explanation_parts.append(f"Deductions: -{data.deductions.total}")
-            explanation_parts.append(f"  - {data.deductions.reasons}")
-        else:
-            explanation_parts.append("Deductions: -0")
-
-        explanation_parts.append(f"Final Score: {total_score} + {data.bonus_points.total} - {data.deductions.total} = {final_score}")
-
-        return "\n".join(explanation_parts)
-
-    def evaluate_batch(self, resumes: List[Dict[str, str]]) -> List[EvaluationResult]:
-        results = []
-        for resume in resumes:
-            try:
-                result = self.evaluate_resume(resume['content'])
-                results.append(result)
-            except Exception as e:
-                print(f"Failed to evaluate resume for {resume.get('name', 'Unknown')}: {str(e)}")
-
-        return results
-
-    def rank_candidates(self, results: List[EvaluationResult]) -> List[Tuple[str, float]]:
-        rankings = [(r.candidate_name, r.final_score) for r in results]
-        return sorted(rankings, key=lambda x: x[1], reverse=True)

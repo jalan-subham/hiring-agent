@@ -174,12 +174,3 @@ class EvaluationData(BaseModel):
     deductions: Deductions
     key_strengths: List[str] = Field(min_items=1, max_items=5)
     areas_for_improvement: List[str] = Field(min_items=1, max_items=3)
-
-class EvaluationResult(BaseModel):
-    candidate_name: str
-    total_score: float = Field(ge=0, le=100)
-    final_score: float
-    category_breakdown: Dict[str, Tuple[float, str]]
-    scoring_explanation: str
-    key_strengths: List[str]
-    areas_for_improvement: List[str]

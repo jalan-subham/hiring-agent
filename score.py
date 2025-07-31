@@ -4,11 +4,11 @@ import json
 import logging
 from pdf import PDFHandler
 from github import fetch_and_display_github_info
-from models import JSONResume, EvaluationResult
+from models import JSONResume, EvaluationData
 from typing import List, Optional, Dict
 from evaluator import ResumeEvaluator
 from pathlib import Path
-from prompt import DEFAULT_MODEL
+from prompt import DEFAULT_MODEL, MODEL_PARAMETERS
 
 # Development mode flag - set to False for production
 DEVELOPMENT_MODE = True
@@ -18,9 +18,11 @@ logging.basicConfig(
     format='%(asctime)s - %(name)5s - %(lineno)5d - %(funcName)33s - %(levelname)5s - %(message)s'
 )
 
-def _evaluate_resume(resume_data: JSONResume, github_data: dict = None, blog_data: dict = None) -> Optional[EvaluationResult]:
+def _evaluate_resume(resume_data: JSONResume, github_data: dict = None, blog_data: dict = None) -> Optional[EvaluationData]:
     """Evaluate the resume using AI and display results."""
-    evaluator = ResumeEvaluator(model_name=DEFAULT_MODEL, temperature=0.2)
+    
+    model_params = MODEL_PARAMETERS.get(DEFAULT_MODEL)
+    evaluator = ResumeEvaluator(model_name=DEFAULT_MODEL, model_params=model_params)
 
     # Convert JSON resume data to text
     resume_text = evaluator._convert_json_resume_to_text(resume_data)
