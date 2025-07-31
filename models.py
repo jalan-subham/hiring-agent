@@ -169,7 +169,6 @@ class Deductions(BaseModel):
     reasons: str = Field(description="Reasons for deductions")
 
 class EvaluationData(BaseModel):
-    candidate_name: str = Field(min_length=1, description="Candidate's name")
     scores: Scores
     bonus_points: BonusPoints
     deductions: Deductions

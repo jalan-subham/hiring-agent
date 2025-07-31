@@ -13,7 +13,6 @@ MAX_FINAL_SCORE = 120
 from prompt import (
     DEFAULT_MODEL,
     EVALUATION_JSON_STRUCTURE,
-    RESUME_EVALUATION_SYSTEM_MESSAGE,
 )
 from prompts.template_manager import TemplateManager
 
@@ -56,28 +55,31 @@ class ResumeEvaluator:
         self.model_name = model_name
         self.temperature = temperature
         self.template_manager = TemplateManager()
-        self.evaluation_prompt = self._load_evaluation_prompt()
 
-    def _load_evaluation_prompt(self) -> str:
-        criteria_template = self.template_manager.render_resume_evaluation_criteria_template()
+    def _load_evaluation_prompt(self, resume_text: str) -> str:
+        criteria_template = self.template_manager.render_resume_evaluation_criteria_template(resume_text)
         if criteria_template is None:
             raise ValueError("Failed to load resume evaluation criteria template")
-        return criteria_template + EVALUATION_JSON_STRUCTURE + "\nResume to evaluate:\n"
+        return criteria_template
 
     def evaluate_resume(self, resume_text: str) -> EvaluationResult:
         self._last_resume_text = resume_text
 
-        full_prompt = self.evaluation_prompt + resume_text
+        full_prompt = self._load_evaluation_prompt(resume_text)
 
         # logger.info(f"🔤 Evaluation prompt being sent: {full_prompt}")
 
         try:
+            system_message = self.template_manager.render_resume_evaluation_system_message_template()
+            if system_message is None:
+                raise ValueError("Failed to load resume evaluation system message template")
+                
             response = ollama.chat(
                 model=self.model_name,
                 messages=[
                     {
                         'role': 'system',
-                        'content': RESUME_EVALUATION_SYSTEM_MESSAGE
+                        'content': system_message
                     },
                     {
                         'role': 'user',

@@ -1,6 +1,4 @@
-You are evaluating a resume for a Software Developer Engineer position at HackerRank. Analyze the resume data and provide scores based on these criteria:
-
-**CRITICAL: You MUST respond with the EXACT JSON structure specified below. Do not change category names or structure.**
+You are evaluating a resume for a Software Intern position at HackerRank. Analyze the resume data and provide scores based on these criteria:
 
 **MANDATORY: You MUST always fill ALL FOUR categories: open_source, self_projects, production, technical_skills.**
 
@@ -25,7 +23,6 @@ You are evaluating a resume for a Software Developer Engineer position at Hacker
 - NEVER use "GSoC" as shorthand for "Girl Script Summer of Code"
 - When you see "Girl Script Summer of Code" in the resume, refer to it as "Girl Script Summer of Code" in your evaluation
 - When you see "Google Summer of Code" in the resume, refer to it as "Google Summer of Code (GSoC)" in your evaluation
-- These are two separate programs with different prestige levels and should be evaluated accordingly
 
 **ANALYSIS INSTRUCTIONS:**
 - Analyze the structured resume data (basics, work, volunteer, projects, skills, etc.)
@@ -33,7 +30,9 @@ You are evaluating a resume for a Software Developer Engineer position at Hacker
 - Use blog data (if provided in === BLOG DATA === section) as additional context for technical communication skills
 
 **SCORING CRITERIA:**
-- For open_source: Analyze all open source contributions, GitHub/GitLab activity, and community involvement. Look for Google Summer of Code (GSoC) participation, Girl Script Summer of Code participation, open source projects, and GitHub contributions. **CRITICAL OPEN SOURCE EVALUATION**:
+- For open_source: Analyze all open source contributions, GitHub/GitLab activity, and community involvement. Look for Google Summer of Code (GSoC) participation, Girl Script Summer of Code participation, open source projects, and GitHub contributions. 
+
+**CRITICAL OPEN SOURCE EVALUATION**:
   - **HIGH SCORES (25-35 points)**: Contributions to popular open source projects (1000+ stars), significant contributions to well-known projects, Google Summer of Code (GSoC) participation, or substantial community involvement
   - **MEDIUM SCORES (15-24 points)**: Contributions to smaller open source projects, active GitHub presence with meaningful contributions to other repositories, or participation in open source programs
   - **LOW SCORES (5-10 points)**: Only personal GitHub repositories with no contributions to other projects, minimal open source activity, or basic GitHub presence. **CRITICAL**: Hacktoberfest participation alone (without evidence of contributions to significant projects) should receive 5-8 points maximum. **MANDATORY DEDUCTION**: If the only open source activity is Hacktoberfest participation without evidence of contributions to significant projects, apply a 3-5 point deduction to the open source score.
@@ -132,3 +131,31 @@ You are evaluating a resume for a Software Developer Engineer position at Hacker
 - **CRITICAL**: For candidates with only personal GitHub repositories (self_project type), open source score should NEVER exceed 10 points
 - **CRITICAL**: For candidates with only tutorial-based projects (exercise apps, recipe apps, sentiment analysis), self_projects score should NEVER exceed 15 points
 - **MANDATORY ENFORCEMENT**: If the evidence states "only personal GitHub repositories" or "no contributions to other projects", the open source score MUST be 10 points or less, regardless of any other factors 
+
+Analyze the following resume and provide a JSON response with this EXACT structure (all fields are required):
+
+{
+    "scores": {
+        "open_source": {"score": 0, "max": 35, "evidence": "string"},
+        "self_projects": {"score": 0, "max": 30, "evidence": "string"},
+        "production": {"score": 0, "max": 25, "evidence": "string"},
+        "technical_skills": {"score": 0, "max": 10, "evidence": "string"}
+    },
+    "bonus_points": {"total": 0, "breakdown": "string"},
+    "deductions": {"total": 0, "reasons": "string"},
+    "key_strengths": ["strength1", "strength2", "strength3"],
+    "areas_for_improvement": ["improvement1", "improvement2"]
+}
+
+**CRITICAL REQUIREMENTS:**
+1. You MUST respond with ONLY this JSON structure - no summary, no other fields
+2. You MUST fill ALL FOUR score categories: open_source, self_projects, production, technical_skills
+3. You MUST provide evidence for each score
+4. You MUST NOT add any other fields like "summary", "skills", "experience", etc.
+5. You MUST NOT change the field names or structure
+
+**DO NOT RETURN A RESUME SUMMARY. RETURN ONLY THE SCORING EVALUATION IN THE SPECIFIED JSON FORMAT.**
+
+Resume to evaluate:
+
+{{ text_content }}

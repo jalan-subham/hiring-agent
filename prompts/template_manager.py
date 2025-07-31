@@ -45,7 +45,8 @@ class TemplateManager:
             'awards': 'awards.jinja',
             'system_message': 'system_message.jinja',
             'github_project_selection': 'github_project_selection.jinja',
-            'resume_evaluation_criteria': 'resume_evaluation_criteria.jinja'
+            'resume_evaluation_criteria': 'resume_evaluation_criteria.jinja',
+            'resume_evaluation_system_message': 'resume_evaluation_system_message.jinja'
         }
         
         for section_name, filename in template_files.items():
@@ -206,7 +207,7 @@ class TemplateManager:
             print(f"❌ Error rendering GitHub project selection template: {e}")
             return None
     
-    def render_resume_evaluation_criteria_template(self) -> Optional[str]:
+    def render_resume_evaluation_criteria_template(self, text_content: str) -> Optional[str]:
         """
         Render the resume evaluation criteria template.
         
@@ -220,7 +221,26 @@ class TemplateManager:
         
         try:
             template = self._templates['resume_evaluation_criteria']
-            return template.render()
+            return template.render(text_content=text_content)
         except Exception as e:
             print(f"❌ Error rendering resume evaluation criteria template: {e}")
+            return None
+    
+    def render_resume_evaluation_system_message_template(self) -> Optional[str]:
+        """
+        Render the resume evaluation system message template.
+        
+        Returns:
+            Optional[str]: Rendered template string
+        """
+        if 'resume_evaluation_system_message' not in self._templates:
+            print(f"❌ Template not found for section: resume_evaluation_system_message")
+            print(f"Available sections: {self.get_available_sections()}")
+            return None
+        
+        try:
+            template = self._templates['resume_evaluation_system_message']
+            return template.render()
+        except Exception as e:
+            print(f"❌ Error rendering resume evaluation system message template: {e}")
             return None 
