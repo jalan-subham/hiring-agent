@@ -131,12 +131,21 @@ def transform_work_experience(work_list: List) -> List[Dict]:
             if isinstance(description, list):
                 description = ' '.join(description)
             
+            # Try to parse from 'startDate' if it contains a date range
+            start_date_input = item.get('startDate', '')
+            if start_date_input and any(month in start_date_input for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
+                start_date, end_date = parse_date_range(start_date_input)
+            else:
+                # Use existing startDate and endDate values
+                start_date = item.get('startDate')
+                end_date = item.get('endDate')
+            
             transformed.append({
                 'name': item.get('name', ''),
                 'position': item.get('position', item.get('type', item.get('title', ''))),
                 'url': item.get('url', None),
-                'startDate': parse_date_range(item.get('years', '')) if 'years' in item else item.get('startDate'),
-                'endDate': parse_end_date(item.get('years', '')) if 'years' in item else item.get('endDate'),
+                'startDate': start_date,
+                'endDate': end_date,
                 'summary': item.get('summary', description),
                 'highlights': item.get('highlights', [])
             })
@@ -168,13 +177,14 @@ def transform_education(edu_list: List) -> List[Dict]:
                 if score is not None:
                     score = str(score)
                 
+                start_date, end_date = parse_date_range(item.get('years', ''))
                 transformed.append({
                     'institution': item.get('institution', ''),
                     'url': item.get('url', None),
                     'area': item.get('degree', '').split(', ')[-1] if ',' in item.get('degree', '') else None,
                     'studyType': item.get('degree', '').split(', ')[0] if ',' in item.get('degree', '') else item.get('degree', ''),
-                    'startDate': parse_date_range(item.get('years', '')),
-                    'endDate': parse_end_date(item.get('years', '')),
+                    'startDate': start_date,
+                    'endDate': end_date,
                     'score': score,
                     'courses': []
                 })
@@ -310,44 +320,50 @@ def transform_projects_comprehensive(parsed_data: Dict) -> List[Dict]:
     return projects
 
 
-def parse_date_range(date_range: str) -> str:
+def parse_date_range(date_range: str) -> tuple:
+    """
+    Parse date range and return both start and end dates.
+    For format like "Jan-Mar 2021", returns ("Jan 2021", "Mar 2021")
+    """
     if not date_range:
-        return None
+        return None, None
     
+    # Handle "onwards" case
+    if 'onwards' in date_range:
+        # Extract the start date from "onwards" format
+        start_part = date_range.replace('onwards', '').strip()
+        if start_part:
+            return start_part, 'Present'
+        return None, 'Present'
+    
+    # Handle format like "Jan-Mar 2021"
     if ' ' in date_range and any(month in date_range for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
         parts = date_range.split(' ')
         if len(parts) >= 2:
             year = parts[-1]
-            month_map = {'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
-                        'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'}
-            start_month = month_map.get(parts[0], '01')
-            return f"{year}-{start_month}"
+            month_map = {'Jan': 'Jan', 'Feb': 'Feb', 'Mar': 'Mar', 'Apr': 'Apr', 'May': 'May', 'Jun': 'Jun',
+                        'Jul': 'Jul', 'Aug': 'Aug', 'Sep': 'Sep', 'Oct': 'Oct', 'Nov': 'Nov', 'Dec': 'Dec'}
+            
+            # Check if it's a range like "Jan-Mar 2021"
+            if '-' in parts[0] and len(parts[0].split('-')) == 2:
+                start_month, end_month = parts[0].split('-')
+                start_date = f"{month_map.get(start_month, start_month)} {year}"
+                end_date = f"{month_map.get(end_month, end_month)} {year}"
+                return start_date, end_date
+            else:
+                # Single month format like "Jan 2021"
+                month = month_map.get(parts[0], parts[0])
+                start_date = f"{month} {year}"
+                return start_date, None
     
+    # Handle year range like "2020-2021"
     if '-' in date_range and len(date_range.split('-')) == 2:
-        start_year = date_range.split('-')[0]
-        return f"{start_year}-01"
+        start_year, end_year = date_range.split('-')
+        start_date = f"{start_year}-01"
+        end_date = f"{end_year}-12"
+        return start_date, end_date
     
-    return None
+    return None, None
 
 
-def parse_end_date(date_range: str) -> str:
-    if not date_range:
-        return None
-    
-    if 'onwards' in date_range:
-        return 'Present'
-    
-    if ' ' in date_range and any(month in date_range for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']):
-        parts = date_range.split(' ')
-        if len(parts) >= 3:
-            year = parts[-1]
-            month_map = {'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
-                        'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'}
-            end_month = month_map.get(parts[1], '12')
-            return f"{year}-{end_month}"
-    
-    if '-' in date_range and len(date_range.split('-')) == 2:
-        end_year = date_range.split('-')[1]
-        return f"{end_year}-12"
-    
-    return None 
+ 

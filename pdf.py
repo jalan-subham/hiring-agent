@@ -16,11 +16,6 @@ from prompt import (
 from prompts.template_manager import TemplateManager
 from transform import transform_parsed_data
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)5s - %(lineno)3d - %(funcName)20s - %(levelname)8s - %(message)s'
-)
-
 logger = logging.getLogger(__name__)
 
 class PDFHandler:
