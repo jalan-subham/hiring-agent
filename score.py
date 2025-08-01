@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import logging
+import csv
 from pdf import PDFHandler
 from github import fetch_and_display_github_info
 from models import JSONResume, EvaluationData
@@ -9,6 +10,7 @@ from typing import List, Optional, Dict
 from evaluator import ResumeEvaluator
 from pathlib import Path
 from prompt import DEFAULT_MODEL, MODEL_PARAMETERS
+from transform import transform_evaluation_response, convert_json_resume_to_text, convert_github_data_to_text, convert_blog_data_to_text
 
 # Development mode flag - set to False for production
 DEVELOPMENT_MODE = True
@@ -18,6 +20,98 @@ logging.basicConfig(
     format='%(asctime)s - %(name)5s - %(lineno)5d - %(funcName)33s - %(levelname)5s - %(message)s'
 )
 
+def print_evaluation_results(evaluation: EvaluationData, candidate_name: str = "Candidate"):
+    """Print evaluation results in a readable format."""
+    print("\n" + "="*80)
+    print(f"📊 RESUME EVALUATION RESULTS FOR: {candidate_name}")
+    print("="*80)
+    
+    if not evaluation:
+        print("❌ No evaluation data available")
+        return
+    
+    # Calculate overall score
+    total_score = 0
+    max_score = 0
+    
+    if hasattr(evaluation, 'scores') and evaluation.scores:
+        for category_name, category_data in evaluation.scores.model_dump().items():
+            total_score += category_data['score']
+            max_score += category_data['max']
+    
+    # Add bonus points
+    if hasattr(evaluation, 'bonus_points') and evaluation.bonus_points:
+        total_score += evaluation.bonus_points.total
+    
+    # Subtract deductions
+    if hasattr(evaluation, 'deductions') and evaluation.deductions:
+        total_score -= evaluation.deductions.total
+    
+    # Overall Score
+    print(f"\n🎯 OVERALL SCORE: {total_score:.1f}/{max_score}")
+    
+    # Detailed Scores
+    print("\n📈 DETAILED SCORES:")
+    print("-" * 60)
+    
+    if hasattr(evaluation, 'scores') and evaluation.scores:
+        # Open Source
+        if hasattr(evaluation.scores, 'open_source') and evaluation.scores.open_source:
+            os_score = evaluation.scores.open_source
+            print(f"🌐 Open Source:          {os_score.score}/{os_score.max}")
+            print(f"   Evidence: {os_score.evidence}")
+            print()
+        
+        # Self Projects
+        if hasattr(evaluation.scores, 'self_projects') and evaluation.scores.self_projects:
+            sp_score = evaluation.scores.self_projects
+            print(f"🚀 Self Projects:        {sp_score.score}/{sp_score.max}")
+            print(f"   Evidence: {sp_score.evidence}")
+            print()
+        
+        # Production Experience
+        if hasattr(evaluation.scores, 'production') and evaluation.scores.production:
+            prod_score = evaluation.scores.production
+            print(f"🏢 Production Experience: {prod_score.score}/{prod_score.max}")
+            print(f"   Evidence: {prod_score.evidence}")
+            print()
+        
+        # Technical Skills
+        if hasattr(evaluation.scores, 'technical_skills') and evaluation.scores.technical_skills:
+            tech_score = evaluation.scores.technical_skills
+            print(f"💻 Technical Skills:     {tech_score.score}/{tech_score.max}")
+            print(f"   Evidence: {tech_score.evidence}")
+            print()
+    
+    # Bonus Points
+    if hasattr(evaluation, 'bonus_points') and evaluation.bonus_points:
+        print(f"\n⭐ BONUS POINTS: {evaluation.bonus_points.total}")
+        print("-" * 30)
+        print(f"   {evaluation.bonus_points.breakdown}")
+    
+    # Deductions
+    if hasattr(evaluation, 'deductions') and evaluation.deductions and evaluation.deductions.total > 0:
+        print(f"\n⚠️  DEDUCTIONS: -{evaluation.deductions.total}")
+        print("-" * 30)
+        if evaluation.deductions.reasons:
+            print(f"   {evaluation.deductions.reasons}")
+    
+    # Key Strengths
+    if hasattr(evaluation, 'key_strengths') and evaluation.key_strengths:
+        print(f"\n✅ KEY STRENGTHS:")
+        print("-" * 30)
+        for i, strength in enumerate(evaluation.key_strengths, 1):
+            print(f"  {i}. {strength}")
+    
+    # Areas for Improvement
+    if hasattr(evaluation, 'areas_for_improvement') and evaluation.areas_for_improvement:
+        print(f"\n🔧 AREAS FOR IMPROVEMENT:")
+        print("-" * 30)
+        for i, area in enumerate(evaluation.areas_for_improvement, 1):
+            print(f"  {i}. {area}")
+    
+    print("\n" + "="*80)
+
 def _evaluate_resume(resume_data: JSONResume, github_data: dict = None, blog_data: dict = None) -> Optional[EvaluationData]:
     """Evaluate the resume using AI and display results."""
     
@@ -25,16 +119,16 @@ def _evaluate_resume(resume_data: JSONResume, github_data: dict = None, blog_dat
     evaluator = ResumeEvaluator(model_name=DEFAULT_MODEL, model_params=model_params)
 
     # Convert JSON resume data to text
-    resume_text = evaluator._convert_json_resume_to_text(resume_data)
+    resume_text = convert_json_resume_to_text(resume_data)
 
     # Add GitHub data if available
     if github_data:
-        github_text = evaluator._convert_github_data_to_text(github_data)
+        github_text = convert_github_data_to_text(github_data)
         resume_text += github_text
 
     # Add blog data if available
     if blog_data:
-        blog_text = evaluator._convert_blog_data_to_text(blog_data)
+        blog_text = convert_blog_data_to_text(blog_data)
         resume_text += blog_text
 
     # Evaluate the enhanced resume
@@ -80,6 +174,32 @@ def main(pdf_path):
             Path(github_cache_filename).write_text(json.dumps(github_data, indent=2, ensure_ascii=False))
         
     score = _evaluate_resume(resume_data, github_data)
+    
+    # Get candidate name for display
+    candidate_name = resume_data.basics.name if resume_data.basics and resume_data.basics.name else os.path.basename(pdf_path).replace('.pdf', '')
+    
+    # Print evaluation results in readable format
+    print_evaluation_results(score, candidate_name)
+
+    if DEVELOPMENT_MODE:
+        csv_row = transform_evaluation_response(evaluation=score, resume_data=resume_data, github_data=github_data)
+        
+        # Write CSV row to file
+        csv_path = "resume_evaluations.csv"
+        file_exists = os.path.exists(csv_path)
+        
+        with open(csv_path, 'a', newline='', encoding='utf-8') as csvfile:
+            fieldnames = list(csv_row.keys())
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            
+            # Write headers if file doesn't exist
+            if not file_exists:
+                writer.writeheader()
+            
+            # Write the row
+            writer.writerow(csv_row)
+        
+        
     return score
 
 if __name__ == "__main__":

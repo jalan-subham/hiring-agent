@@ -43,7 +43,7 @@ class PDFHandler:
     def _call_llm_for_section(self, section_name: str, text_content: str, prompt: str, return_model=None) -> Optional[Dict]:
         try:
             start_time = time.time()
-            logger.info(f"🔄 Extracting {section_name} section using {DEFAULT_MODEL}...")
+            logger.debug(f"🔄 Extracting {section_name} section using {DEFAULT_MODEL}...")
             
             model_params = MODEL_PARAMETERS.get(DEFAULT_MODEL)
             
