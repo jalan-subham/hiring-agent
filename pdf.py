@@ -103,13 +103,13 @@ class PDFHandler:
                     response_text = response_text[json_start:json_end + 1]
                 
                 parsed_data = json.loads(response_text)
-                logger.info(f"✅ Successfully extracted {section_name} section")
+                logger.debug(f"✅ Successfully extracted {section_name} section")
 
                 transformed_data = transform_parsed_data(parsed_data)
                 
                 end_time = time.time()
                 total_time = end_time - start_time
-                logger.info(f"⏱️ Total time for separate section extraction: {total_time:.2f} seconds")
+                logger.debug(f"⏱️ Total time for separate section extraction: {total_time:.2f} seconds")
 
                 return transformed_data
                 
@@ -182,7 +182,7 @@ class PDFHandler:
             
             logger.debug(f"✅ Successfully extracted {len(text_content)} characters from PDF")
             
-            logger.info("🔄 Extracting all sections separately...")
+            logger.debug("🔄 Extracting all sections separately...")
             return self._extract_all_sections_separately(text_content)
 
                 
@@ -257,9 +257,9 @@ class PDFHandler:
             
             if section_data:
                 complete_resume.update(section_data)
-                logger.info(f"✅ Successfully extracted {section_name} section")
+                logger.debug(f"✅ Successfully extracted {section_name} section")
             else:
-                logger.info(f"⚠️ Failed to extract {section_name} section")
+                logger.error(f"⚠️ Failed to extract {section_name} section")
         
         try:
             if complete_resume.get('basics') and isinstance(complete_resume['basics'], dict):
