@@ -285,12 +285,11 @@ def generate_projects_json(projects: List[Dict]) -> List[Dict]:
         projects_json = json.dumps(projects_data, indent=2)
         
         template_manager = TemplateManager()
-        prompt = template_manager.render_github_project_selection_template(projects_data=projects_json)
+        prompt = template_manager.render_template('github_project_selection', projects_data=projects_json)
         
         print(f"🤖 Using LLM to select top 5 projects from {len(projects)} repositories...")
         
         model_params = MODEL_PARAMETERS.get(DEFAULT_MODEL)
-        print(prompt)
         response = ollama.chat(
             model=DEFAULT_MODEL,
             messages=[

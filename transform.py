@@ -373,7 +373,7 @@ def fetch_profile(profiles, network_names, prefix):
         if profile:
             return profile    
 
-def transform_evaluation_response(resume_data, github_data=None, evaluation=None):
+def transform_evaluation_response(file_name=None, resume_data=None, github_data=None, evaluation=None):
     """
     Transform the three inputs (resume_data, github_data, evaluation) into the most important columns as a CSV row.
     
@@ -386,6 +386,8 @@ def transform_evaluation_response(resume_data, github_data=None, evaluation=None
         dict: Dictionary with the most important columns for CSV output
     """
     csv_row = {}
+
+    csv_row['file_name'] = file_name
     
     # Extract basic information from resume_data
     if resume_data and hasattr(resume_data, 'basics') and resume_data.basics:

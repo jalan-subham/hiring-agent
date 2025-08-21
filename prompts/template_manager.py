@@ -91,156 +91,22 @@ class TemplateManager:
             print(f"❌ Error rendering template for {section_name}: {e}")
             return None
     
-    def render_basics_template(self, text_content: str) -> Optional[str]:
-        """
-        Render the basics template.
-        
-        Args:
-            text_content (str): Resume text content
-            
-        Returns:
-            Optional[str]: Rendered template string
-        """
-        return self.render_template('basics', text_content=text_content)
+
     
-    def render_work_template(self, text_content: str) -> Optional[str]:
-        """
-        Render the work template.
-        
-        Args:
-            text_content (str): Resume text content
-            
-        Returns:
-            Optional[str]: Rendered template string
-        """
-        return self.render_template('work', text_content=text_content)
+
     
-    def render_education_template(self, text_content: str) -> Optional[str]:
-        """
-        Render the education template.
-        
-        Args:
-            text_content (str): Resume text content
-            
-        Returns:
-            Optional[str]: Rendered template string
-        """
-        return self.render_template('education', text_content=text_content)
+
     
-    def render_skills_template(self, text_content: str) -> Optional[str]:
-        """
-        Render the skills template.
-        
-        Args:
-            text_content (str): Resume text content
-            
-        Returns:
-            Optional[str]: Rendered template string
-        """
-        return self.render_template('skills', text_content=text_content)
+
     
-    def render_projects_template(self, text_content: str) -> Optional[str]:
-        """
-        Render the projects template.
-        
-        Args:
-            text_content (str): Resume text content
-            
-        Returns:
-            Optional[str]: Rendered template string
-        """
-        return self.render_template('projects', text_content=text_content)
+
     
-    def render_awards_template(self, text_content: str) -> Optional[str]:
-        """
-        Render the awards template.
-        
-        Args:
-            text_content (str): Resume text content
-            
-        Returns:
-            Optional[str]: Rendered template string
-        """
-        return self.render_template('awards', text_content=text_content)
+
     
-    def render_system_message_template(self, section_name: str) -> Optional[str]:
-        """
-        Render the system message template.
-        
-        Args:
-            section_name (str): Name of the section being extracted
-            
-        Returns:
-            Optional[str]: Rendered template string
-        """
-        if 'system_message' not in self._templates:
-            print(f"❌ Template not found for section: system_message")
-            print(f"Available sections: {self.get_available_sections()}")
-            return None
-        
-        try:
-            template = self._templates['system_message']
-            return template.render(section_name=section_name)
-        except Exception as e:
-            print(f"❌ Error rendering system message template: {e}")
-            return None
+
     
-    def render_github_project_selection_template(self, projects_data: str) -> Optional[str]:
-        """
-        Render the GitHub project selection template.
-        
-        Args:
-            projects_data (str): JSON string of projects data
-            
-        Returns:
-            Optional[str]: Rendered template string
-        """
-        if 'github_project_selection' not in self._templates:
-            print(f"❌ Template not found for section: github_project_selection")
-            print(f"Available sections: {self.get_available_sections()}")
-            return None
-        
-        try:
-            template = self._templates['github_project_selection']
-            return template.render(projects_data=projects_data)
-        except Exception as e:
-            print(f"❌ Error rendering GitHub project selection template: {e}")
-            return None
+
     
-    def render_resume_evaluation_criteria_template(self, text_content: str) -> Optional[str]:
-        """
-        Render the resume evaluation criteria template.
-        
-        Returns:
-            Optional[str]: Rendered template string
-        """
-        if 'resume_evaluation_criteria' not in self._templates:
-            print(f"❌ Template not found for section: resume_evaluation_criteria")
-            print(f"Available sections: {self.get_available_sections()}")
-            return None
-        
-        try:
-            template = self._templates['resume_evaluation_criteria']
-            return template.render(text_content=text_content)
-        except Exception as e:
-            print(f"❌ Error rendering resume evaluation criteria template: {e}")
-            return None
+
     
-    def render_resume_evaluation_system_message_template(self) -> Optional[str]:
-        """
-        Render the resume evaluation system message template.
-        
-        Returns:
-            Optional[str]: Rendered template string
-        """
-        if 'resume_evaluation_system_message' not in self._templates:
-            print(f"❌ Template not found for section: resume_evaluation_system_message")
-            print(f"Available sections: {self.get_available_sections()}")
-            return None
-        
-        try:
-            template = self._templates['resume_evaluation_system_message']
-            return template.render()
-        except Exception as e:
-            print(f"❌ Error rendering resume evaluation system message template: {e}")
-            return None 
+ 

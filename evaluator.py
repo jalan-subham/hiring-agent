@@ -26,7 +26,7 @@ class ResumeEvaluator:
         self.template_manager = TemplateManager()
 
     def _load_evaluation_prompt(self, resume_text: str) -> str:
-        criteria_template = self.template_manager.render_resume_evaluation_criteria_template(resume_text)
+        criteria_template = self.template_manager.render_template('resume_evaluation_criteria', text_content=resume_text)
         if criteria_template is None:
             raise ValueError("Failed to load resume evaluation criteria template")
         return criteria_template
@@ -39,7 +39,7 @@ class ResumeEvaluator:
         # logger.info(f"🔤 Evaluation prompt being sent: {full_prompt}")
 
         try:
-            system_message = self.template_manager.render_resume_evaluation_system_message_template()
+            system_message = self.template_manager.render_template('resume_evaluation_system_message')
             if system_message is None:
                 raise ValueError("Failed to load resume evaluation system message template")
                 

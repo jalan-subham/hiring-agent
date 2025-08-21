@@ -1,2 +1,6 @@
 .env
 **/*.pyc
+cache/**
+resume/*.pdf
+run/*.pdf
+test_*.py

@@ -47,7 +47,7 @@ class PDFHandler:
             
             model_params = MODEL_PARAMETERS.get(DEFAULT_MODEL)
             
-            section_system_message = self.template_manager.render_system_message_template(section_name)
+            section_system_message = self.template_manager.render_template('system_message', section_name_param=section_name)
             if not section_system_message:
                 logger.error(f"❌ Failed to render system message template for {section_name}")
                 return None
@@ -123,42 +123,42 @@ class PDFHandler:
             return None
 
     def extract_basics_section(self, resume_text: str) -> Optional[Dict]:
-        prompt = self.template_manager.render_basics_template(resume_text)
+        prompt = self.template_manager.render_template('basics', text_content=resume_text)
         if not prompt:
             logger.error("❌ Failed to render basics template")
             return None
         return self._call_llm_for_section("basics", resume_text, prompt, BasicsSection)
 
     def extract_work_section(self, resume_text: str) -> Optional[Dict]:
-        prompt = self.template_manager.render_work_template(resume_text)
+        prompt = self.template_manager.render_template('work', text_content=resume_text)
         if not prompt:
             logger.error("❌ Failed to render work template")
             return None
         return self._call_llm_for_section("work", resume_text, prompt, WorkSection)
 
     def extract_education_section(self, resume_text: str) -> Optional[Dict]:
-        prompt = self.template_manager.render_education_template(resume_text)
+        prompt = self.template_manager.render_template('education', text_content=resume_text)
         if not prompt:
             logger.error("❌ Failed to render education template")
             return None
         return self._call_llm_for_section("education", resume_text, prompt, EducationSection)
 
     def extract_skills_section(self, resume_text: str) -> Optional[Dict]:
-        prompt = self.template_manager.render_skills_template(resume_text)
+        prompt = self.template_manager.render_template('skills', text_content=resume_text)
         if not prompt:
             logger.error("❌ Failed to render skills template")
             return None
         return self._call_llm_for_section("skills", resume_text, prompt, SkillsSection)
 
     def extract_projects_section(self, resume_text: str) -> Optional[Dict]:
-        prompt = self.template_manager.render_projects_template(resume_text)
+        prompt = self.template_manager.render_template('projects', text_content=resume_text)
         if not prompt:
             logger.error("❌ Failed to render projects template")
             return None
         return self._call_llm_for_section("projects", resume_text, prompt, ProjectsSection)
 
     def extract_awards_section(self, resume_text: str) -> Optional[Dict]:
-        prompt = self.template_manager.render_awards_template(resume_text)
+        prompt = self.template_manager.render_template('awards', text_content=resume_text)
         if not prompt:
             logger.error("❌ Failed to render awards template")
             return None

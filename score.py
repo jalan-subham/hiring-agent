@@ -15,6 +15,8 @@ from transform import transform_evaluation_response, convert_json_resume_to_text
 # Development mode flag - set to False for production
 DEVELOPMENT_MODE = True
 
+logger = logging.getLogger(__name__)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)5s - %(lineno)5d - %(funcName)33s - %(levelname)5s - %(message)s'
@@ -152,7 +154,7 @@ def main(pdf_path):
         cached_data = json.loads(Path(cache_filename).read_text())
         resume_data = JSONResume(**cached_data)
     else:
-        print(f"Extracting data from PDF" + (" and caching to " + cache_filename if DEVELOPMENT_MODE else ""))
+        logger.debug(f"Extracting data from PDF" + (" and caching to " + cache_filename if DEVELOPMENT_MODE else ""))
         pdf_handler = PDFHandler()
         resume_data = pdf_handler.extract_json_from_pdf(pdf_path)
         if DEVELOPMENT_MODE:
@@ -182,7 +184,7 @@ def main(pdf_path):
     print_evaluation_results(score, candidate_name)
 
     if DEVELOPMENT_MODE:
-        csv_row = transform_evaluation_response(evaluation=score, resume_data=resume_data, github_data=github_data)
+        csv_row = transform_evaluation_response(file_name=os.path.basename(pdf_path),evaluation=score, resume_data=resume_data, github_data=github_data)
         
         # Write CSV row to file
         csv_path = "resume_evaluations.csv"
