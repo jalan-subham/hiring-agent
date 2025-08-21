@@ -37,6 +37,8 @@ Return ONLY a JSON object with this structure:
 - DO NOT add generic platform URLs like "https://github.com" or "https://linkedin.com" unless they are actually present in the resume
 - If no URLs are found in the resume, return an empty profiles array: "profiles": []
 - If a URL is present but you cannot determine the network or username, still include it with the available information
+- If the URL is of the format github.io or personal domain, mark the network as "Portfolio"
+- If there is any link at the header of the resume or Portfolio link, add that as url in the basics
 
 **EXAMPLES OF WHAT NOT TO DO:**
 - Do NOT add "https://github.com" if GitHub is not mentioned in the resume
