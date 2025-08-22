@@ -2,16 +2,21 @@ import os
 import sys
 import json
 import time
-import ollama
 import logging
 import pymupdf
 
-from models import JSONResume, Basics, Work, Education, Skill, Project, Award, BasicsSection, WorkSection, EducationSection, SkillsSection, ProjectsSection, AwardsSection
+from models import (
+    JSONResume, Basics, Work, Education, Skill, Project, Award, 
+    BasicsSection, WorkSection, EducationSection, SkillsSection, ProjectsSection, AwardsSection
+)
+from llm_utils import initialize_llm_provider, extract_json_from_response
 from pymupdf_rag import to_markdown
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from prompt import (
     DEFAULT_MODEL,
-    MODEL_PARAMETERS
+    MODEL_PARAMETERS,
+    MODEL_PROVIDER_MAPPING,
+    GEMINI_API_KEY
 )
 from prompts.template_manager import TemplateManager
 from transform import transform_parsed_data
@@ -19,15 +24,20 @@ from transform import transform_parsed_data
 logger = logging.getLogger(__name__)
 
 class PDFHandler:
-    
+
     def __init__(self):
         self.template_manager = TemplateManager()
+        self._initialize_llm_provider()
+
+    def _initialize_llm_provider(self):
+        """Initialize the appropriate LLM provider based on the model."""
+        self.provider = initialize_llm_provider(DEFAULT_MODEL)
 
     def extract_text_from_pdf(self, pdf_path: str) -> Optional[str]:
         try:
             if not os.path.exists(pdf_path):
                 raise FileNotFoundError(f"PDF file not found: {pdf_path}")
-            
+
             doc = pymupdf.open(pdf_path)
             pages = range(doc.page_count)
             resume_text = to_markdown(
@@ -44,14 +54,17 @@ class PDFHandler:
         try:
             start_time = time.time()
             logger.debug(f"🔄 Extracting {section_name} section using {DEFAULT_MODEL}...")
-            
-            model_params = MODEL_PARAMETERS.get(DEFAULT_MODEL)
-            
+
+            model_params = MODEL_PARAMETERS.get(DEFAULT_MODEL, {
+                'temperature': 0.1,
+                'top_p': 0.9
+            })
+
             section_system_message = self.template_manager.render_template('system_message', section_name_param=section_name)
             if not section_system_message:
                 logger.error(f"❌ Failed to render system message template for {section_name}")
                 return None
-            
+
             chat_params = {
                 'model': DEFAULT_MODEL,
                 'messages': [
@@ -70,54 +83,36 @@ class PDFHandler:
                     'top_p': model_params['top_p']
                 }
             }
-            
+
+            kwargs = {}
             if return_model:
-                chat_params['format'] = return_model.model_json_schema()
-            
-            response = ollama.chat(**chat_params)
-            
+                kwargs['format'] = return_model.model_json_schema()
+
+            # Use the appropriate provider to make the API call
+            response = self.provider.chat(**chat_params, **kwargs)
+
             response_text = response['message']['content']
-            
+
             try:
-                response_text = response_text.strip()
-                
-                if '<think>' in response_text:
-                    think_start = response_text.find('<think>')
-                    think_end = response_text.find('</think>')
-                    if think_start != -1 and think_end != -1:
-                        response_text = response_text[:think_start] + response_text[think_end + 8:]
-                
-                if response_text.startswith('```json'):
-                    response_text = response_text[7:]
-                elif response_text.startswith('```'):
-                    response_text = response_text[3:]
-                if response_text.endswith('```'):
-                    response_text = response_text[:-3]
-                
-                response_text = response_text.strip()
-                
+                response_text = extract_json_from_response(response_text)
                 json_start = response_text.find('{')
                 json_end = response_text.rfind('}')
-                
                 if json_start != -1 and json_end != -1:
                     response_text = response_text[json_start:json_end + 1]
-                
                 parsed_data = json.loads(response_text)
                 logger.debug(f"✅ Successfully extracted {section_name} section")
 
                 transformed_data = transform_parsed_data(parsed_data)
-                
                 end_time = time.time()
                 total_time = end_time - start_time
                 logger.debug(f"⏱️ Total time for separate section extraction: {total_time:.2f} seconds")
 
                 return transformed_data
-                
             except json.JSONDecodeError as e:
                 logger.error(f"❌ Error parsing JSON for {section_name} section: {e}")
                 logger.error(f"Raw response: {response_text}")
                 return None
-                
+    
         except Exception as e:
             logger.error(f"❌ Error calling LLM for {section_name} section: {e}")
             return None
@@ -175,17 +170,17 @@ class PDFHandler:
         try:
             logger.debug(f"📄 Extracting text from PDF: {pdf_path}")
             text_content = self.extract_text_from_pdf(pdf_path)
-            
+
             if not text_content:
                 logger.error("❌ Failed to extract text from PDF")
                 return None
-            
+
             logger.debug(f"✅ Successfully extracted {len(text_content)} characters from PDF")
-            
+
             logger.debug("🔄 Extracting all sections separately...")
             return self._extract_all_sections_separately(text_content)
 
-                
+    
         except Exception as e:
             logger.error(f"❌ Error during PDF to JSON extraction: {e}")
             return None
@@ -199,12 +194,12 @@ class PDFHandler:
             'projects': self.extract_projects_section,
             'awards': self.extract_awards_section
         }
-        
+    
         if section_name not in section_extractors:
             logger.error(f"❌ Invalid section name: {section_name}")
             logger.error(f"Valid sections: {list(section_extractors.keys())}")
             return None
-        
+    
         return section_extractors[section_name](text_content)
 
     def _extract_single_section(self, text_content: str, section_name: str, return_model=None) -> Optional[Dict]:
@@ -225,17 +220,17 @@ class PDFHandler:
                 'projects': None,
                 'meta': None
             }
-            
+
             complete_resume.update(section_data)
             return complete_resume
-        
+    
         return None
 
     def _extract_all_sections_separately(self, text_content: str) -> Optional[JSONResume]:
         start_time = time.time()
-        
+    
         sections = ['basics', 'work', 'education', 'skills', 'projects', 'awards']
-        
+    
         complete_resume = {
             'basics': None,
             'work': None,
@@ -251,16 +246,16 @@ class PDFHandler:
             'projects': None,
             'meta': None
         }
-        
+    
         for section_name in sections:
             section_data = self._extract_section_data(text_content, section_name)
-            
+
             if section_data:
                 complete_resume.update(section_data)
                 logger.debug(f"✅ Successfully extracted {section_name} section")
             else:
                 logger.error(f"⚠️ Failed to extract {section_name} section")
-        
+    
         try:
             if complete_resume.get('basics') and isinstance(complete_resume['basics'], dict):
                 try:
@@ -268,15 +263,15 @@ class PDFHandler:
                 except Exception as e:
                     logger.error(f"❌ Error creating Basics object: {e}")
                     complete_resume['basics'] = None
-            
+
             json_resume = JSONResume(**complete_resume)
-            
+
             end_time = time.time()
             total_time = end_time - start_time
             logger.info(f"⏱️ Total time for separate section extraction: {total_time:.2f} seconds")
-            
+
             return json_resume
-            
+
         except Exception as e:
             logger.error(f"❌ Error creating JSONResume object: {e}")
             return None
