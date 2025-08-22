@@ -20,6 +20,17 @@ Return ONLY a JSON object with this structure:
   ]
 }
 
-**IMPORTANT**: The startDate and endDate might be in a single line. For example like "Jan-Mar 2021".
+**IMPORTANT**: 
+
+For date extraction, follow these rules carefully:
+
+1. Look for date ranges in the work experience section. These often appear as "Start – End" or "Start - End" format.
+2. Date ranges can be separated by any of these characters: hyphen "-", en dash "–", em dash "—", or the word "to".
+3. Carefully extract both the start and end dates from these ranges.
+4. If a position is current/ongoing, the end date may be indicated by words like "Present", "Current", "Now", "Ongoing", etc.
+5. Look for dates near position titles or company names
+6. Dates might be formatted as "Month Year" or "MM/YYYY" or other variations
+7. If dates appear as "Month Year - Month Year", extract both parts
+8. If only years are provided (e.g., "2019-2021"), use the year information only
 
 **IMPORTANT**: Return ONLY valid JSON. Do not include any explanatory text. 
