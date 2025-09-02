@@ -11,9 +11,7 @@ from evaluator import ResumeEvaluator
 from pathlib import Path
 from prompt import DEFAULT_MODEL, MODEL_PARAMETERS
 from transform import transform_evaluation_response, convert_json_resume_to_text, convert_github_data_to_text, convert_blog_data_to_text
-
-# Development mode flag - set to False for production
-DEVELOPMENT_MODE = True
+from config import DEVELOPMENT_MODE
 
 logger = logging.getLogger(__name__)
 

@@ -9,8 +9,7 @@ from models import GitHubProfile
 from prompts.template_manager import TemplateManager
 from prompt import DEFAULT_MODEL, MODEL_PARAMETERS
 from llm_utils import initialize_llm_provider, extract_json_from_response
-
-DEVELOPMENT_MODE = True
+from config import DEVELOPMENT_MODE
 
 def _create_cache_filename(api_url: str, params: dict = None) -> str:
     url_parts = api_url.replace("https://api.github.com/", "").replace("/", "_")
