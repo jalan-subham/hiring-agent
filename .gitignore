@@ -1,10 +1,11 @@
 # Project Specific Files
 
 **/*.pyc
-cache/**
 resume/*.pdf
 run/*.pdf
 test_*.py
+cache/
+resume_evaluations.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
