@@ -1,39 +1,69 @@
-## Contributing Guidelines
+# Contributing Guidelines
 
-Hi! Thanks for your interest in helping to make this project more awesome by contributing.
+Thanks for your interest in improving this project. Contributions are welcome, including documentation updates, bug reports, feature requests, and code changes.
 
-Contribution can be anything like (but not limited to) improving documentation, reporting bugs, feature requests, contributing code.
+## Reporting Bugs
 
-### Reporting Bugs
+1. Check that the bug has not already been reported: https://github.com/interviewstreet/hiring-agent/issues
+2. Open a new bug report: https://github.com/interviewstreet/hiring-agent/issues/new
+3. Please include:
+   - Clear description of the issue and expected behavior
+   - Environment info: OS, Python version, hiring-agent commit or version
+   - Steps to reproduce
+   - Relevant logs or stack traces
 
-1. First make sure that the bug has not already been [reported](https://github.com/interviewstreet/hiring-agent).
-2. Create a [bug report](https://github.com/interviewstreet/hiring-agent/issues/new).
-3. It would be helpful for us if the issue:
-   - can be descriptive.
-   - have information like Operating system, hiring-agent version, etc.
-   - have steps to reproduce the error.
-   - have error stacktrace.
+> [!TIP]
+> If the bug involves PDF parsing or model output, attach a minimal PDF and the exact model you used.
 
-### Feature Requests
+## Feature Requests
 
-1. First make sure that the feature has not already been [requested](https://github.com/interviewstreet/hiring-agent).
-2. Create a [feature request](https://github.com/interviewstreet/hiring-agent/issues/new).
+1. Check for existing requests: https://github.com/interviewstreet/hiring-agent/issues
+2. Open a new feature request: https://github.com/interviewstreet/hiring-agent/issues/new
+3. Describe the problem, the proposed solution, and any alternatives you considered.
 
-### Contributing code
+## Contributing Code
 
-1. Pick up an [issue](https://github.com/interviewstreet/hiring-agent/issues) (or [create one](https://github.com/interviewstreet/hiring-agent/issues/new)) on which you want to work. You
-   can take help of labels to filter them down.
-2. Tell beforehand that you are working on the issue. This helps in making sure that multiple contributors are not working on the same issue.
+1. Pick an issue from https://github.com/interviewstreet/hiring-agent/issues or open one first.
+2. Comment that you are working on it to avoid duplicate efforts.
+3. Fork the repo, then create a feature branch for your change.
 
 ### Development
 
-1. Fork the repository and clone it locally.
-2. Please create a separate branch for each issue that you're working on. Do not make changes to the default branch (e.g. master) of your fork.
-3. Make changes to the code and
-4. Install the cli [via source code](https://github.com/interviewstreet/hiring-agent#using-source-code) and check/confirm your changes.
-5. Commit the changes to the issue branch you created. Please Write descriptive commits.
-6. Push the changes to your fork and submit a Pull Request with the issue reference.
+1. Fork and clone your fork.
+2. Create a fresh branch per change. Avoid pushing changes to the default branch of your fork.
+3. Set up the environment and run the pipeline locally to validate changes
+4. Run the CLI on a small sample to verify behavior:
 
 ### Coding Style
 
-This project uses the [Black](https://black.readthedocs.io/en/stable/) code formatter for formatting the code. [Flake8](https://flake8.pycqa.org/en/latest/) is used for linting the code and validating the style and structure.
+* Use [Black](https://black.readthedocs.io/en/stable/) for formatting.
+* Keep functions short and focused. Prefer pure helpers for prompt assembly and transformations.
+
+### Prompts and Providers
+
+* Keep prompts declarative and provider agnostic.
+* Avoid model specific tokens or formatting that only one provider supports.
+* Changes to prompts should include short before and after examples in the pull request description.
+
+### Tests and Smoke Checks
+
+* Validate changes with a couple of real resumes under different providers when possible:
+
+  * One run with Ollama using the default local model.
+  * One run with Gemini if you have an API key.
+* Add or adjust small smoke tests that exercise each stage with minimal inputs:
+
+  * PDF to Markdown
+  * Section extraction to JSON Resume
+  * GitHub enrichment on a known username
+  * Evaluation to JSON with the required fields
+
+
+### Commit Messages
+
+* Use clear, imperative subjects, for example: `fix: handle en dash date ranges in work parser`.
+* Reference the issue number when applicable.
+
+## Code of Conduct
+
+Be respectful and collaborative. If you see unacceptable behavior, report it through an issue or contact the maintainers.
