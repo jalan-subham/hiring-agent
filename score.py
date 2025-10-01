@@ -156,6 +156,7 @@ def main(pdf_path):
         pdf_handler = PDFHandler()
         resume_data = pdf_handler.extract_json_from_pdf(pdf_path)
         if DEVELOPMENT_MODE:
+            os.makedirs(os.path.dirname(cache_filename), exist_ok=True)
             Path(cache_filename).write_text(json.dumps(resume_data.model_dump(), indent=2, ensure_ascii=False))
     
     # Check if cache exists and we're in development mode
@@ -171,6 +172,7 @@ def main(pdf_path):
         if github_profile:
             github_data = fetch_and_display_github_info(github_profile.url)
         if DEVELOPMENT_MODE:
+            os.makedirs(os.path.dirname(github_cache_filename), exist_ok=True)
             Path(github_cache_filename).write_text(json.dumps(github_data, indent=2, ensure_ascii=False))
         
     score = _evaluate_resume(resume_data, github_data)
