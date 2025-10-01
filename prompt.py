@@ -56,11 +56,23 @@ MODEL_PARAMETERS = {
         "temperature": 0.1,
         "top_p": 0.9
     },
-    "gemini-1.0-pro": {
+    "gemini-2.0-flash": {
+        "temperature": 0.1,
+        "top_p": 0.9
+    },
+    "gemini-2.0-flash-lite": {
         "temperature": 0.1,
         "top_p": 0.9
     },
     "gemini-2.5-pro": {
+        "temperature": 0.1,
+        "top_p": 0.9
+    },
+    "gemini-2.5-flash": {
+        "temperature": 0.1,
+        "top_p": 0.9
+    },
+    "gemini-2.5-flash-lite": {
         "temperature": 0.1,
         "top_p": 0.9
     }
