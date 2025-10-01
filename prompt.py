@@ -52,14 +52,6 @@ MODEL_PARAMETERS = {
     },
     
     # Google Gemini models
-    "gemini-1.5-pro": {
-        "temperature": 0.1,
-        "top_p": 0.9
-    },
-    "gemini-1.5-flash": {
-        "temperature": 0.1,
-        "top_p": 0.9
-    },
     "gemini-2.0-flash": {
         "temperature": 0.1,
         "top_p": 0.9
@@ -90,12 +82,14 @@ MODEL_PROVIDER_MAPPING = {
     "gemma3:1b": ModelProvider.OLLAMA,
     "qwen3:4b": ModelProvider.OLLAMA,
     "gemma3:4b": ModelProvider.OLLAMA,
+    "gemma3:12b": ModelProvider.OLLAMA,
     "mistral:7b": ModelProvider.OLLAMA,
     
     # Google Gemini models
-    "gemini-1.5-pro": ModelProvider.GEMINI,
-    "gemini-1.5-flash": ModelProvider.GEMINI,
-    "gemini-1.0-pro": ModelProvider.GEMINI,
+    "gemini-2.0-flash": ModelProvider.GEMINI,
+    "gemini-2.0-flash-lite": ModelProvider.GEMINI,
+    "gemini-2.5-flash": ModelProvider.GEMINI,
+    "gemini-2.5-flash-lite": ModelProvider.GEMINI,
     "gemini-2.5-pro": ModelProvider.GEMINI
 }
 
