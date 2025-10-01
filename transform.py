@@ -395,7 +395,7 @@ def transform_evaluation_response(file_name=None, resume_data=None, github_data=
         csv_row['name'] = basics.name if basics.name else ''
         csv_row['email'] = basics.email if basics.email else ''
         csv_row['phone'] = basics.phone if basics.phone else ''
-        csv_row['location'] = f"{basics.location.city}, {basics.location.region}"
+        csv_row['location'] = f"{basics.location.city}, {basics.location.region}" if basics.location else ''
         csv_row['summary'] = basics.summary if basics.summary else ''
         
         # Extract all profile information

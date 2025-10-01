@@ -139,7 +139,9 @@ def _evaluate_resume(resume_data: JSONResume, github_data: dict = None, blog_dat
     return evaluation_result
 
 def find_profile(profiles, network):
-        return next((p for p in profiles if p.network and p.network.lower() == network.lower()), None)
+    if not profiles:
+        return None
+    return next((p for p in profiles if p.network and p.network.lower() == network.lower()), None)
 
 def main(pdf_path):
     # Create cache filename based on PDF path
@@ -166,7 +168,11 @@ def main(pdf_path):
         github_data = json.loads(Path(github_cache_filename).read_text())
     else:
         print(f"Fetching GitHub data" + (" and caching to " + github_cache_filename if DEVELOPMENT_MODE else ""))
-        profiles = resume_data.basics.profiles
+
+        # Add validation to handle None values
+        profiles = []
+        if resume_data and hasattr(resume_data, 'basics') and resume_data.basics:
+            profiles = resume_data.basics.profiles or []
         github_profile = find_profile(profiles, "Github")
 
         if github_profile:
@@ -178,7 +184,9 @@ def main(pdf_path):
     score = _evaluate_resume(resume_data, github_data)
     
     # Get candidate name for display
-    candidate_name = resume_data.basics.name if resume_data.basics and resume_data.basics.name else os.path.basename(pdf_path).replace('.pdf', '')
+    candidate_name = os.path.basename(pdf_path).replace('.pdf', '')
+    if resume_data and hasattr(resume_data, 'basics') and resume_data.basics and resume_data.basics.name:
+        candidate_name = resume_data.basics.name
     
     # Print evaluation results in readable format
     print_evaluation_results(score, candidate_name)
