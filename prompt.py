@@ -42,6 +42,10 @@ MODEL_PARAMETERS = {
         "temperature": 0.1,
         "top_p": 0.9
     },
+    "gemma3:12b": {
+        "temperature": 0.1,
+        "top_p": 0.9
+    },
     "mistral:7b": {
         "temperature": 0.1,
         "top_p": 0.9
