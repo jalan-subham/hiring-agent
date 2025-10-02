@@ -284,7 +284,25 @@ class OllamaProvider:
         **kwargs
     ) -> Dict[str, Any]:
         """Send a chat request to Ollama."""
-        chat_params = {"model": model, "messages": messages, "options": options or {}}
+
+        ollama_options = options.copy() if options else {}
+
+        # remove steam from ollama options
+        ollama_options.pop("stream", None)
+
+        # Add num_ctx 32K context window to options
+        ollama_options["num_ctx"] = 32768
+
+        # convert to chat params
+        chat_params = {
+            "model": model,
+            "messages": messages,
+            "options": ollama_options,
+        }
+
+        # add it to top level
+        if "stream" in kwargs:
+            chat_params["stream"] = kwargs["stream"]
 
         if "format" in kwargs:
             chat_params["format"] = kwargs["format"]
