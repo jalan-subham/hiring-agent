@@ -73,8 +73,11 @@ def extract_github_username(github_url: str) -> Optional[str]:
     for pattern in patterns:
         match = re.search(pattern, github_url)
         if match:
-            return match.group(1)
-
+            username = match.group(1)
+            # Remove query parameters if present (e.g., "?tab=repositories")
+            if "?" in username:
+                username = username.split("?", 1)[0]
+            return username
     return None
 
 
