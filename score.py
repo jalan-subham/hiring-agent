@@ -218,6 +218,10 @@ def main(pdf_path):
         )
         pdf_handler = PDFHandler()
         resume_data = pdf_handler.extract_json_from_pdf(pdf_path)
+
+        if resume_data == None:
+            return None
+
         if DEVELOPMENT_MODE:
             os.makedirs(os.path.dirname(cache_filename), exist_ok=True)
             Path(cache_filename).write_text(
